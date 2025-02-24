@@ -1,4 +1,4 @@
-# WordPress Auto-Installer Script
+# WordPress Auto-Installer Script on LAMP stack
 
 ## Overview
 
@@ -22,8 +22,10 @@ Before running the script, ensure that you:
 
 ## Installation
 
-### 1. Download the Script
+### 1. Point the DNS correctly
+Go to your domain registrar and point th DNS to your server for domain, www, subdomain as needed
 
+### 2.  Download the Script
 Clone the repository or download the script manually:
 
 ```bash
@@ -32,7 +34,8 @@ git clone https://github.com/kadavilrahul/install_wordpress_on_lamp.git
 ```bash
 cd install_wordpress_on_lamp
 ```
-### 2. Modify Script Variables
+
+### 3. Modify Script Variables
 
 Open the script and update the following variables to match your setup:
 
@@ -88,9 +91,6 @@ ls -l /var/www/html/phpmyadmin
 
 This script is released under the MIT License.
 
-## Author
-
-Your Name
 
 ## Contributions
 
