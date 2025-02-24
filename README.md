@@ -44,18 +44,12 @@ DOMAIN="your_domain.com"
 EMAIL="example@email.com"
 ```
 
-### 3. Make the Script Executable
-
-```bash
-chmod +x wordpress-setup.sh
-```
-
-### 4. Run the Script
+### 3. Run the Script
 
 Execute the script with:
 
 ```bash
-sudo ./wordpress-setup.sh
+bash install.sh
 ```
 
 ## Features
