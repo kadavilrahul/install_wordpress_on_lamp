@@ -1,0 +1,244 @@
+#!/bin/bash
+
+# Helper function for error handling
+error_exit() {
+    echo "$1" >&2
+    exit 1
+}
+
+# Helper function for yes/no confirmation
+confirm() {
+    read -p "$1 (y/n): " -n 1 -r
+    echo
+    [[ $REPLY =~ ^[Yy]$ ]]
+}
+
+# Collect all inputs at the beginning
+echo "Please provide the following information:"
+
+# Domain and directory information
+read -p "Enter main domain name (e.g., example.com): " MAIN_DOMAIN
+read -p "Enter web directory path (e.g., /var/www): " WP_DIR
+
+# User details
+read -p "Enter new username: " NEW_USER
+read -s -p "Enter password for $NEW_USER: " USER_PASSWORD
+echo
+read -p "Enter rclone remote path (e.g., remote_name:backup_folder): " RCLONE_PATH
+read -p "Enter swap file size in GB (e.g., 3): " SWAP_SIZE
+echo "Enter your SSH public key (paste and press Enter twice to finish):"
+SSH_PUBLIC_KEY=$(cat)
+
+# Timezone confirmation
+if confirm "Do you want to set timezone to Asia/Kolkata?"; then
+    SET_TIMEZONE=true
+else
+    SET_TIMEZONE=false
+    echo "Skipping timezone setting. Please set it manually later."
+fi
+
+# 1. Initial System Update
+if confirm "Do you want to update the system?"; then
+    echo "Updating system..."
+    apt update && apt upgrade -y || error_exit "Failed to update system"
+fi
+
+# 2. Install Required Packages
+if confirm "Do you want to install required packages?"; then
+    echo "Installing required packages..."
+    apt install -y apache2 \
+                  ghostscript \
+                  libapache2-mod-php \
+                  mysql-server \
+                  php \
+                  php-bcmath \
+                  php-curl \
+                  php-imagick \
+                  php-intl \
+                  php-json \
+                  php-mbstring \
+                  php-mysql \
+                  php-xml \
+                  php-zip \
+                  certbot \
+                  python3-certbot-apache || error_exit "Failed to install required packages"
+fi
+
+# 3. Configure Apache and PHP
+if confirm "Do you want to configure Apache and PHP?"; then
+    echo "Configuring Apache and PHP..."
+    # Enable Apache modules
+    a2enmod rewrite
+    a2enmod ssl
+    a2enmod headers
+
+    # Configure PHP
+    PHP_INI_PATH=$(php -i | grep "Loaded Configuration File" | awk '{print $5}')
+    sed -i 's/upload_max_filesize = .*/upload_max_filesize = 64M/' $PHP_INI_PATH
+    sed -i 's/post_max_size = .*/post_max_size = 64M/' $PHP_INI_PATH
+    sed -i 's/memory_limit = .*/memory_limit = 256M/' $PHP_INI_PATH
+    sed -i 's/max_execution_time = .*/max_execution_time = 300/' $PHP_INI_PATH
+    sed -i 's/max_input_time = .*/max_input_time = 300/' $PHP_INI_PATH
+
+    systemctl restart apache2
+fi
+
+# 4. Create SSH control scripts
+if confirm "Do you want to create SSH control scripts?"; then
+    echo "Creating SSH control scripts..."
+    cat > /root/disable_root.sh <<'EOF'
+#!/bin/bash
+sed -i '1s/yes/no/g' /etc/ssh/sshd_config.d/50-cloud-init.conf
+sed -i '33s/yes/no/g' /etc/ssh/sshd_config
+sed -i '57s/yes/no/g' /etc/ssh/sshd_config
+systemctl restart ssh
+EOF
+
+    cat > /root/enable_root.sh <<'EOF'
+#!/bin/bash
+sed -i '1s/no/yes/g' /etc/ssh/sshd_config.d/50-cloud-init.conf
+sed -i '33s/no/yes/g' /etc/ssh/sshd_config
+sed -i '57s/no/yes/g' /etc/ssh/sshd_config
+systemctl restart ssh
+EOF
+
+    chmod +x /root/disable_root.sh /root/enable_root.sh
+fi
+
+# 5. Install phpMyAdmin
+if confirm "Do you want to install phpMyAdmin?"; then
+    echo "Installing phpMyAdmin..."
+    apt install phpmyadmin -y
+    ln -s /usr/share/phpmyadmin "$WP_DIR/phpmyadmin"
+fi
+
+# 6. Create backup directory and backup script
+if confirm "Do you want to set up backup system?"; then
+    echo "Creating backup directory and script..."
+    if ! mkdir -p /website_backups; then
+        error_exit "Failed to create backup directory"
+    fi
+    chmod 755 /website_backups
+
+    cat > /root/backup_www.sh <<EOF
+#!/bin/bash
+WWW_PATH="/var/www"
+BACKUP_DIR="/website_backups"
+TIMESTAMP=\$(date +"%Y-%m-%d_%H-%M-%S")
+DB_DUMP_NAME="wordpress_db.sql"
+FULL_BACKUP_NAME="${MAIN_DOMAIN}_www_backup_\${TIMESTAMP}.tar.gz"
+
+mkdir -p \$BACKUP_DIR
+
+wp db export \$WWW_PATH/$MAIN_DOMAIN/\$DB_DUMP_NAME --path=\$WWW_PATH/$MAIN_DOMAIN --allow-root
+tar -czvf \$BACKUP_DIR/\$FULL_BACKUP_NAME -C /var www
+rm -f \$WWW_PATH/$MAIN_DOMAIN/\$DB_DUMP_NAME
+EOF
+
+    chmod +x /root/backup_www.sh
+fi
+
+# 7. Setup Cron Jobs
+if confirm "Do you want to set up cron jobs?"; then
+    (crontab -l 2>/dev/null; echo "00 02 */1 * * bash /root/backup_www.sh") | crontab -
+    (crontab -l 2>/dev/null; echo "00 03 */1 * * /usr/bin/rclone copy /website_backups \"$RCLONE_PATH\" --log-file=/var/log/rclone.log && find /website_backups -type f -exec rm -f {} \;") | crontab -
+    (crontab -l 2>/dev/null; echo "0 0,12 * * * python3 -c 'import random; import time; time.sleep(random.random() * 3600)' && certbot renew --quiet") | crontab -
+fi
+
+# 8. Install and configure additional services
+if confirm "Do you want to install and configure UFW firewall?"; then
+    echo "Installing and configuring UFW firewall..."
+    apt install ufw -y
+    ufw --force enable
+    ufw allow OpenSSH
+    ufw allow 80/tcp
+    ufw allow 443/tcp
+    ufw allow 3306
+fi
+
+if confirm "Do you want to install Fail2ban?"; then
+    apt install fail2ban -y
+    systemctl enable fail2ban
+    systemctl start fail2ban
+fi
+
+if confirm "Do you want to setup swap file?"; then
+    fallocate -l ${SWAP_SIZE}G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
+if confirm "Do you want to install additional utilities (plocate, rclone, pv, rsync)?"; then
+    apt install -y plocate rclone pv rsync
+fi
+
+# 9. Install XFCE and Chrome Remote Desktop
+if confirm "Do you want to install XFCE and Chrome Remote Desktop?"; then
+    apt install -y xfce4 xfce4-goodies lightdm firefox
+    wget https://dl.google.com/linux/direct/chrome-remote-desktop_current_amd64.deb
+    dpkg -i chrome-remote-desktop_current_amd64.deb
+    apt --fix-broken install -y
+    apt --fix-missing install -y
+    echo "exec /etc/X11/Xsession /usr/bin/xfce4-session" > /etc/chrome-remote-desktop-session
+fi
+
+# Create new user
+if confirm "Do you want to create a new user?"; then
+    adduser --disabled-password --gecos "" $NEW_USER
+    echo "$NEW_USER:$USER_PASSWORD" | chpasswd
+    usermod -aG sudo $NEW_USER
+    groupadd -f chrome-remote-desktop
+    usermod -aG chrome-remote-desktop $NEW_USER
+fi
+
+# Configure SSH keys
+if confirm "Do you want to configure SSH keys?"; then
+    mkdir -p /root/.ssh
+    touch /root/.ssh/authorized_keys
+    echo "$SSH_PUBLIC_KEY" > /root/.ssh/authorized_keys
+    chmod 600 /root/.ssh/authorized_keys
+    chmod 700 /root/.ssh
+
+    USER_HOME="/home/$NEW_USER"
+    mkdir -p $USER_HOME/.ssh
+    cp /root/.ssh/authorized_keys $USER_HOME/.ssh/
+    chown -R $NEW_USER:$NEW_USER $USER_HOME/.ssh
+    chmod 600 $USER_HOME/.ssh/authorized_keys
+    chmod 700 $USER_HOME/.ssh
+fi
+
+# Final configurations
+if confirm "Do you want to apply final configurations (Apache security, etc.)?"; then
+    # Set timezone if selected
+    if [ "$SET_TIMEZONE" = true ]; then
+        timedatectl set-timezone Asia/Kolkata
+    fi
+
+    # Update Apache security settings
+    sed -i 's/^#\?ServerTokens OS/ServerTokens Prod/' /etc/apache2/apache2.conf
+    sed -i 's/^#\?ServerSignature On/ServerSignature Off/' /etc/apache2/apache2.conf
+
+    # Improve directory configurations
+    cat >> /etc/apache2/apache2.conf <<APACHE_CONFIG
+
+# Improved directory security
+<Directory /var/www>
+    Options Indexes FollowSymLinks
+    AllowOverride All
+    Require all granted
+</Directory>
+APACHE_CONFIG
+
+    # Create PHP info file
+    echo "<?php phpinfo(); ?>" > "$WP_DIR/info.php"
+
+    # Final Apache restart
+    systemctl restart apache2
+
+    # Clean up downloaded files
+    rm -f chrome-remote-desktop_current_amd64.deb
+fi
+
+echo "Installation and configuration completed!"
