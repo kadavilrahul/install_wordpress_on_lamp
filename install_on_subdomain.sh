@@ -125,6 +125,20 @@ a2ensite "$FULL_DOMAIN-ssl.conf"
 # Restart Apache
 systemctl start apache2
 
+# Install WP-CLI
+echo "Installing WP-CLI..."
+curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar || error_exit "Failed to download WP-CLI"
+chmod +x wp-cli.phar
+mv wp-cli.phar /usr/local/bin/wp
+
+# Redis
+apt install redis-server -y
+echo -e "maxmemory ${REDIS_MAX_MEMORY}gb\nmaxmemory-policy allkeys-lru" >> /etc/redis/redis.conf
+echo "vm.overcommit_memory=1" >> /etc/sysctl.conf
+sysctl -p
+systemctl enable redis-server
+systemctl restart redis-server
+
 # Before the final echo statements, add this code:
 
 # Create a summary file with installation details
