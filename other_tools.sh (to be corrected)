@@ -13,21 +13,10 @@ confirm() {
     [[ $REPLY =~ ^[Yy]$ ]]
 }
 
-# Collect all inputs at the beginning
-echo "Please provide the following information:"
-
-# Domain and directory information
+# Initial required inputs
+echo "Please provide the following basic information:"
 read -p "Enter main domain name (e.g., example.com): " MAIN_DOMAIN
 read -p "Enter web directory path (e.g., /var/www): " WP_DIR
-
-# User details
-read -p "Enter new username: " NEW_USER
-read -s -p "Enter password for $NEW_USER: " USER_PASSWORD
-echo
-read -p "Enter rclone remote path (e.g., remote_name:backup_folder): " RCLONE_PATH
-read -p "Enter swap file size in GB (e.g., 3): " SWAP_SIZE
-echo "Enter your SSH public key (paste and press Enter twice to finish):"
-SSH_PUBLIC_KEY=$(cat)
 
 # Timezone confirmation
 if confirm "Do you want to set timezone to Asia/Kolkata?"; then
@@ -35,6 +24,41 @@ if confirm "Do you want to set timezone to Asia/Kolkata?"; then
 else
     SET_TIMEZONE=false
     echo "Skipping timezone setting. Please set it manually later."
+fi
+
+# Ask about backup configuration
+if confirm "Do you want to configure backup with rclone?"; then
+    SETUP_BACKUP=true
+    read -p "Enter rclone remote path (e.g., remote_name:backup_folder): " RCLONE_PATH
+else
+    SETUP_BACKUP=false
+fi
+
+# Ask about user creation
+if confirm "Do you want to create a new user?"; then
+    CREATE_USER=true
+    read -p "Enter new username: " NEW_USER
+    read -s -p "Enter password for $NEW_USER: " USER_PASSWORD
+    echo
+else
+    CREATE_USER=false
+fi
+
+# Ask about SSH key configuration
+if confirm "Do you want to configure SSH keys?"; then
+    SETUP_SSH=true
+    echo "Enter your SSH public key (paste and press Enter twice to finish):"
+    SSH_PUBLIC_KEY=$(cat)
+else
+    SETUP_SSH=false
+fi
+
+# Ask about swap configuration
+if confirm "Do you want to setup swap file?"; then
+    SETUP_SWAP=true
+    read -p "Enter swap file size in GB (e.g., 3): " SWAP_SIZE
+else
+    SETUP_SWAP=false
 fi
 
 # 1. Initial System Update
@@ -141,7 +165,9 @@ fi
 # 7. Setup Cron Jobs
 if confirm "Do you want to set up cron jobs?"; then
     (crontab -l 2>/dev/null; echo "00 02 */1 * * bash /root/backup_www.sh") | crontab -
-    (crontab -l 2>/dev/null; echo "00 03 */1 * * /usr/bin/rclone copy /website_backups \"$RCLONE_PATH\" --log-file=/var/log/rclone.log && find /website_backups -type f -exec rm -f {} \;") | crontab -
+    if [ "$SETUP_BACKUP" = true ]; then
+        (crontab -l 2>/dev/null; echo "00 03 */1 * * /usr/bin/rclone copy /website_backups \"$RCLONE_PATH\" --log-file=/var/log/rclone.log && find /website_backups -type f -exec rm -f {} \;") | crontab -
+    fi
     (crontab -l 2>/dev/null; echo "0 0,12 * * * python3 -c 'import random; import time; time.sleep(random.random() * 3600)' && certbot renew --quiet") | crontab -
 fi
 
@@ -162,7 +188,8 @@ if confirm "Do you want to install Fail2ban?"; then
     systemctl start fail2ban
 fi
 
-if confirm "Do you want to setup swap file?"; then
+if [ "$SETUP_SWAP" = true ]; then
+    echo "Setting up swap file..."
     fallocate -l ${SWAP_SIZE}G /swapfile
     chmod 600 /swapfile
     mkswap /swapfile
@@ -184,8 +211,9 @@ if confirm "Do you want to install XFCE and Chrome Remote Desktop?"; then
     echo "exec /etc/X11/Xsession /usr/bin/xfce4-session" > /etc/chrome-remote-desktop-session
 fi
 
-# Create new user
-if confirm "Do you want to create a new user?"; then
+# Create new user if selected
+if [ "$CREATE_USER" = true ]; then
+    echo "Creating new user..."
     adduser --disabled-password --gecos "" $NEW_USER
     echo "$NEW_USER:$USER_PASSWORD" | chpasswd
     usermod -aG sudo $NEW_USER
@@ -193,20 +221,23 @@ if confirm "Do you want to create a new user?"; then
     usermod -aG chrome-remote-desktop $NEW_USER
 fi
 
-# Configure SSH keys
-if confirm "Do you want to configure SSH keys?"; then
+# Configure SSH keys if selected
+if [ "$SETUP_SSH" = true ]; then
+    echo "Configuring SSH keys..."
     mkdir -p /root/.ssh
     touch /root/.ssh/authorized_keys
     echo "$SSH_PUBLIC_KEY" > /root/.ssh/authorized_keys
     chmod 600 /root/.ssh/authorized_keys
     chmod 700 /root/.ssh
 
-    USER_HOME="/home/$NEW_USER"
-    mkdir -p $USER_HOME/.ssh
-    cp /root/.ssh/authorized_keys $USER_HOME/.ssh/
-    chown -R $NEW_USER:$NEW_USER $USER_HOME/.ssh
-    chmod 600 $USER_HOME/.ssh/authorized_keys
-    chmod 700 $USER_HOME/.ssh
+    if [ "$CREATE_USER" = true ]; then
+        USER_HOME="/home/$NEW_USER"
+        mkdir -p $USER_HOME/.ssh
+        cp /root/.ssh/authorized_keys $USER_HOME/.ssh/
+        chown -R $NEW_USER:$NEW_USER $USER_HOME/.ssh
+        chmod 600 $USER_HOME/.ssh/authorized_keys
+        chmod 700 $USER_HOME/.ssh
+    fi
 fi
 
 # Final configurations
