@@ -23,7 +23,7 @@ apt update && apt upgrade -y
 
 # Install required packages
 echo "Installing required packages..."
-sudo apt-get install php php-fpm libapache2-mod-php php-mysql php-curl php-gd php-mbstring php-xml php-xmlrpc php-soap php-intl php-zip -y
+sudo apt-get install apache2 php php-fpm libapache2-mod-php php-mysql php-curl php-gd php-mbstring php-xml php-xmlrpc php-soap php-intl php-zip -y
 sudo a2enmod proxy_fcgi setenvif
 sudo a2enconf php8.3-fpm  # Adjust version if needed
 
