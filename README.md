@@ -30,7 +30,7 @@ Clone the repository or download the script manually:
 git clone https://github.com/kadavilrahul/install_wordpress_on_lamp.git
 ```
 ```bash
-cd install_wordpress_on_lamp.git
+cd install_wordpress_on_lamp
 ```
 ### 2. Modify Script Variables
 
