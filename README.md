@@ -27,7 +27,7 @@ Before running the script, ensure that you:
 Clone the repository or download the script manually:
 
 ```bash
-wget https://github.com/your-repo-name/wordpress-setup-script.sh -O wordpress-setup.sh
+git clone https://github.com/kadavilrahul/install_wordpress_on_lamp.git
 ```
 
 ### 2. Modify Script Variables
@@ -49,7 +49,10 @@ EMAIL="example@email.com"
 Execute the script with:
 
 ```bash
-bash install.sh
+bash install_on_maindomain.sh
+```
+```bash
+bash install_on_subdomain.sh
 ```
 
 ## Features
