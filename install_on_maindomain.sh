@@ -17,7 +17,8 @@ export DEBIAN_FRONTEND=noninteractive
 # Prompt for input variables
 read -p "Enter main domain name (e.g., example.com): " MAIN_DOMAIN
 read -p "Enter admin email: " ADMIN_EMAIL
-read -sp "Enter MySQL root password (should match 'Karimpadam2@'): " DB_ROOT_PASSWORD
+read -sp "Enter MySQL root password (new password): " DB_ROOT_PASSWORD
+
 read -p "Enter Redis maximum memory in GB (e.g., 6): " REDIS_MAX_MEMORY
 echo  # New line after password input
 
