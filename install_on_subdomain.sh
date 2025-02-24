@@ -27,14 +27,7 @@ apt update && apt upgrade -y
 
 # Install required packages
 echo "Installing required packages..."
-echo "Installing LAMP Stack..."
-apt-get install -y apache2 mysql-server php php-fpm libapache2-mod-php php-mysql php-cli php-common php-mbstring php-gd php-intl php-xml php-curl php-zip certbot python3-certbot-apache || { echo "Failed to install LAMP stack"; exit 1; }
-
-# Enable PHP-FPM in Apache
-echo "Configuring Apache to use PHP-FPM..."
-a2enmod proxy_fcgi setenvif
-a2enconf php8.3-fpm  # Adjust version if needed
-systemctl restart apache2
+apt install -y apache2 mysql-server php php-fpm libapache2-mod-php php-mysql php-curl php-gd php-mbstring php-xml php-xmlrpc unzip wget certbot python3-certbot-apache
 
 # Prepare domain-based database credentials
 DB_NAME=$(echo "$FULL_DOMAIN" | tr '.' '_')_db
