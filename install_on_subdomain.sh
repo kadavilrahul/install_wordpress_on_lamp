@@ -11,6 +11,9 @@ if [[ $EUID -ne 0 ]]; then
    error_exit "This script must be run as root (use sudo)"
 fi
 
+# Install apache2
+sudo apt install -y apache2
+
 # Prompt for input variables
 read -p "Enter main domain name (e.g., silkroademart.com): " MAIN_DOMAIN
 read -p "Enter subdomain name (e.g., wholesale or products): " SUBDOMAIN
