@@ -125,10 +125,58 @@ a2ensite "$FULL_DOMAIN-ssl.conf"
 # Restart Apache
 systemctl start apache2
 
-echo "Subdomain WordPress and SSL installation complete!"
-echo "Subdomain: $FULL_DOMAIN"
+# Before the final echo statements, add this code:
+
+# Create a summary file with installation details
+cat > "/root/installation_summary_$FULL_DOMAIN.txt" <<SUMMARY
+WordPress Subdomain Installation Summary
+=======================================
+Date: $(date)
+
+Domain Information:
+-----------------
+Main Domain: $MAIN_DOMAIN
+Subdomain: $SUBDOMAIN
+Full Domain: $FULL_DOMAIN
+WordPress Directory: $WP_DIR
+
+Database Information:
+-------------------
+Database Name: $DB_NAME
+Database User: $DB_USER
+Database Password: $DB_PASSWORD
+MySQL Root Password: $DB_ROOT_PASSWORD
+
+Important Paths:
+--------------
+WordPress Root: $WP_DIR
+
+SSL Certificate:
+--------------
+Certificate Path: /etc/letsencrypt/live/$FULL_DOMAIN/
+Auto-renewal: Twice daily check (0:00 and 12:00)
+
+Please save this information securely!
+SUMMARY
+
+# Set proper permissions for the summary file
+chmod 600 /root/installation_summary_$FULL_DOMAIN.txt
+
+echo "============================================="
+echo "Subdomain WordPress Installation Complete!"
+echo "============================================="
+echo "A complete summary has been saved to: /root/installation_summary_$FULL_DOMAIN.txt"
+echo ""
+echo "Quick Access Information:"
+echo "------------------------"
+echo "WordPress URL: https://$FULL_DOMAIN"
+echo ""
+echo "Database Information:"
+echo "-------------------"
 echo "Database Name: $DB_NAME"
 echo "Database User: $DB_USER"
 echo "Database Password: $DB_PASSWORD"
 echo "Admin Email: $ADMIN_EMAIL"
-echo "Please save these credentials securely!"
+echo ""
+echo "IMPORTANT: Please save the installation summary file securely!"
+echo "============================================="
