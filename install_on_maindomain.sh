@@ -18,9 +18,8 @@ export DEBIAN_FRONTEND=noninteractive
 read -p "Enter main domain name (e.g., example.com): " MAIN_DOMAIN
 read -p "Enter admin email: " ADMIN_EMAIL
 read -sp "Enter MySQL root password (new password): " DB_ROOT_PASSWORD
-
-read -p "Enter Redis maximum memory in GB (e.g., 6): " REDIS_MAX_MEMORY
 echo  # New line after password input
+read -p "Enter Redis maximum memory in GB (e.g., 6): " REDIS_MAX_MEMORY
 
 # Update system packages
 echo "Updating system packages..."
