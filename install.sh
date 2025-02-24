@@ -1,7 +1,6 @@
-# Check, define variables and modify accordingly as needed
-
-
 #!/bin/bash
+
+# Check, define variables and modify accordingly as needed
 
 # Define variables
 DB_NAME="your_domainname_db"
