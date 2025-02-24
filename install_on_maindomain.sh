@@ -25,7 +25,7 @@ read -p "Enter Redis maximum memory in GB (should be nearly equal to your databa
 echo "Updating system packages..."
 apt update && apt upgrade -y || error_exit "Failed to update system packages"
 
-# 1. Install LAMP Stack with PHP-FPM
+# Install LAMP Stack with PHP-FPM
 echo "Installing LAMP Stack..."
 apt-get install -y apache2 mysql-server php php-fpm libapache2-mod-php php-mysql php-cli php-common php-mbstring php-gd php-intl php-xml php-curl php-zip certbot python3-certbot-apache || { echo "Failed to install LAMP stack"; exit 1; }
 
@@ -57,7 +57,7 @@ DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
 FLUSH PRIVILEGES;
 MYSQL_SCRIPT
 
-# 2. WordPress Setup
+# WordPress Setup
 echo "Setting up WordPress..."
 DB_NAME=$(echo "$MAIN_DOMAIN" | tr '.' '_')_db
 DB_USER=$(echo "$MAIN_DOMAIN" | tr '.' '_')_user
@@ -155,7 +155,7 @@ a2ensite "$MAIN_DOMAIN-ssl.conf"
 # Start Apache
 systemctl start apache2
 
-# 3. Install WP-CLI
+# Install WP-CLI
 echo "Installing WP-CLI..."
 curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar || error_exit "Failed to download WP-CLI"
 chmod +x wp-cli.phar
@@ -168,6 +168,31 @@ echo "vm.overcommit_memory=1" >> /etc/sysctl.conf
 sysctl -p
 systemctl enable redis-server
 systemctl restart redis-server
+
+# Configure OPcache
+PHP_VERSION=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;")
+PHP_INI_FILE="/etc/php/$PHP_VERSION/apache2/php.ini"
+
+sed -i \
+    -e '/;\s*opcache.enable=/s/^;//' \
+    -e '/opcache.enable=/s/=.*/=1/' \
+    -e '/;\s*opcache.memory_consumption=/s/^;//' \
+    -e '/opcache.memory_consumption=/s/=.*/=512/' \
+    -e '/;\s*opcache.interned_strings_buffer=/s/^;//' \
+    -e '/opcache.interned_strings_buffer=/s/=.*/=8/' \
+    -e '/;\s*opcache.max_accelerated_files=/s/^;//' \
+    -e '/opcache.max_accelerated_files=/s/=.*/=10000/' \
+    -e '/;\s*opcache.revalidate_freq=/s/^;//' \
+    -e '/opcache.revalidate_freq=/s/=.*/=60/' \
+    -e '/;\s*opcache.save_comments=/s/^;//' \
+    -e '/opcache.save_comments=/s/=.*/=1/' "$PHP_INI_FILE"
+
+# Configure MySQL log purging
+MYSQL_CONF="/etc/mysql/mysql.conf.d/mysqld.cnf"
+echo -e "[mysqld]\nexpire_logs_days = 1" | sudo tee -a $MYSQL_CONF > /dev/null
+
+# Restart MySQL to apply changes
+systemctl restart mysql
 
 # Create a summary file with installation details
 cat > "/root/installation_summary_$MAIN_DOMAIN.txt" <<SUMMARY
