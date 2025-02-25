@@ -46,6 +46,8 @@ bash install_on_maindomain.sh
 bash install_on_subdomain.sh
 ```
 
+### 4. Open your domain/subdomain on browser and complete wordpress installtion
+
 ## Features
 
 * Fully automated WordPress setup
