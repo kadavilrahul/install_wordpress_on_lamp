@@ -36,7 +36,7 @@ cd install_wordpress_on_lamp
 ```
 
 ### 3. Run the Script
-
+Modify redis server memory in the script.
 Execute the script with:
 
 ```bash
