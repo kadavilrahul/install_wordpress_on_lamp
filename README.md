@@ -35,20 +35,6 @@ git clone https://github.com/kadavilrahul/install_wordpress_on_lamp.git
 cd install_wordpress_on_lamp
 ```
 
-### 3. Modify Script Variables
-
-Open the script and update the following variables to match your setup:
-
-```bash
-DB_NAME="your_domainname_db"
-DB_USER="your_domainname_user"
-DB_PASSWORD="your_domainname_2@"
-DB_ROOT_PASSWORD="root_2@"
-WP_DIR="/var/www/html"  # Change if necessary
-DOMAIN="your_domain.com"
-EMAIL="example@email.com"
-```
-
 ### 3. Run the Script
 
 Execute the script with:
