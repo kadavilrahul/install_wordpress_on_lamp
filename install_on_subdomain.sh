@@ -16,6 +16,7 @@ read -p "Enter main domain name (e.g., silkroademart.com): " MAIN_DOMAIN
 read -p "Enter subdomain name (e.g., wholesale or products): " SUBDOMAIN
 read -p "Enter admin email: " ADMIN_EMAIL
 read -sp "Enter MySQL root password: " DB_ROOT_PASSWORD
+read -p "Enter Redis maximum memory in GB (should be nearly equal to your database size): " REDIS_MAX_MEMORY
 echo  # New line after password input
 
 # Construct full domain
