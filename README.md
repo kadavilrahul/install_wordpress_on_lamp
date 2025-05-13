@@ -5,6 +5,8 @@
 This Bash script automates the installation of a LAMP stack, WordPress, and phpMyAdmin on an Ubuntu server. It performs the following tasks:
 
 * Updates system packages
+* Asks for domain name, subdomain name or subdirectory name
+* Asks for email, MySQl password, Redis memory to be allocated
 * Installs Apache, MySQL, PHP, and required PHP extensions
 * Configures and enables Apache and MySQL services
 * Downloads and configures WordPress
@@ -36,7 +38,7 @@ cd install_wordpress_on_lamp
 ```
 
 ### 3. Run the Script
-Modify redis server memory in the script.
+
 Execute the script with:
 
 ```bash
@@ -44,6 +46,9 @@ bash install_on_maindomain.sh
 ```
 ```bash
 bash install_on_subdomain.sh
+```
+```bash
+bash install_on_subdirectory.sh
 ```
 
 ### 4. Open your domain/subdomain on browser and complete wordpress installtion
