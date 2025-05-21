@@ -53,6 +53,9 @@ bash install_on_subdirectory.sh
 
 ### 4. Open your domain/subdomain on browser and complete wordpress installtion
 
+### 5. If you need to migrate wordpress from another server use below script
+https://github.com/kadavilrahul/wordpress_backup_and_restore
+
 ## Features
 
 * Fully automated WordPress setup
