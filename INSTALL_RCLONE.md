@@ -99,13 +99,12 @@ Run this on VS code or Remote desktop so that login process does not have port c
     ```bash
     rclone lsl "remote_name:/path/to/folder/" | sort -k2,2 | tail -n 2
   
-
-3. **Restore from Google Drive**
+3. **Restore latest files from Google Drive:**
 
     ```bash
-    rclone copy -v remote_name:/path/to/folder/backup.tar.gz /path/to/backup --progress
+    read -p "How many latest backup files do you want to copy? (1 or 2): " NUM && [[ "$NUM" == "1" || "$NUM" == "2" ]] && rclone lsl "remote_name:/path/to/folder/" | sort -k2,2 | tail -n $NUM | awk '{print $NF}' | xargs -I{} rclone copy -v "server_silkroademart:backup_silkroademart/{}" /website_backups --progress || echo "Invalid input. Please enter 1 or 2."
     ```
-
+    
 ## Cron Job for Automatic Backups
 
     **Set up a cron job:**
@@ -142,4 +141,10 @@ Run this on VS code or Remote desktop so that login process does not have port c
     ```bash
     rclone sync /path/to/backup "remote_name:"
     rclone sync /path/to/backup "remote_name:" --progress
+    ```
+
+    Restore from Google Drive with file name
+
+    ```bash
+    rclone copy -v remote_name:/path/to/folder/backup.tar.gz /path/to/backup --progress
     ```

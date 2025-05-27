@@ -65,6 +65,10 @@ bash install_on_subdirectory.sh
 * Enter password
 * Enter admin email ID
 
+### 5. Optionally Install Rclone to transfer backups to cloud like google drive
+
+Read file INSTALL_RCLONE.md
+
 ## Features
 
 * Fully automated WordPress setup
