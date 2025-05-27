@@ -19,7 +19,7 @@ read -p "Enter main domain name (e.g., example.com): " MAIN_DOMAIN
 read -p "Enter admin email: " ADMIN_EMAIL
 read -sp "Enter MySQL root password (new password): " DB_ROOT_PASSWORD
 echo  # New line after password input
-read -p "Enter Redis maximum memory in GB (should be nearly equal to your database size): " REDIS_MAX_MEMORY
+read -p "Enter Redis maximum memory in GB (Default is 1 GB, it should be nearly equal to your database size): " REDIS_MAX_MEMORY
 [[ -z "$REDIS_MAX_MEMORY" ]] && REDIS_MAX_MEMORY="1"
 # Update system packages
 echo "Updating system packages..."
@@ -240,19 +240,15 @@ echo ""
 echo "Quick Access Information:"
 echo "------------------------"
 echo "WordPress URL: https://$MAIN_DOMAIN"
-echo "phpMyAdmin URL: https://$MAIN_DOMAIN/phpmyadmin"
-echo "PHP Info URL: https://$MAIN_DOMAIN/info.php"
+echo "Visit above URL and complete installation"
+echo "REdis and OPcache are installed"
+echo "Add Redis plugin on wordpress to activate redis"
 echo ""
 echo "Database Information:"
 echo "-------------------"
 echo "Database Name: $DB_NAME"
 echo "Database User: $DB_USER"
 echo "Database Password: $DB_PASSWORD"
-echo ""
-echo "Remote Desktop Access:"
-echo "--------------------"
-echo "Username: $NEW_USER"
-echo "Password: $USER_PASSWORD"
 echo ""
 echo "IMPORTANT: Please save the installation summary file securely!"
 echo "For security reasons, consider removing info.php after testing."
