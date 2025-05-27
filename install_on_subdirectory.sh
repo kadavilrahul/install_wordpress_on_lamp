@@ -20,7 +20,8 @@ read -p "Enter WordPress subdirectory name (e.g., blog): " WP_SUBDIR
 read -p "Enter admin email: " ADMIN_EMAIL
 read -sp "Enter MySQL root password (new password): " DB_ROOT_PASSWORD
 echo  # New line after password input
-read -p "Enter Redis maximum memory in GB (should be nearly equal to your database size): " REDIS_MAX_MEMORY
+read -p "Enter Redis maximum memory in GB (Default is 1Gb, it should be nearly equal to your database size): " REDIS_MAX_MEMORY
+[[ -z "$REDIS_MAX_MEMORY" ]] && REDIS_MAX_MEMORY="1"
 
 # Update system packages
 echo "Updating system packages..."
@@ -162,8 +163,7 @@ a2enmod ssl
 a2enmod headers
 a2ensite "$MAIN_DOMAIN-ssl.conf"
 
-# Start Apache
-systemctl start apache2
+
 
 # Install WP-CLI
 echo "Installing WP-CLI..."
@@ -201,8 +201,10 @@ sed -i \
 MYSQL_CONF="/etc/mysql/mysql.conf.d/mysqld.cnf"
 echo -e "[mysqld]\nexpire_logs_days = 1" | sudo tee -a $MYSQL_CONF > /dev/null
 
-# Restart MySQL to apply changes
+# Restart to apply changes
+systemctl start apache2
 systemctl restart mysql
+systemctl restart php8.3-fpm
 
 # Create .htaccess file for WordPress subdirectory
 cat > "$WP_DIR/.htaccess" <<HTACCESS
