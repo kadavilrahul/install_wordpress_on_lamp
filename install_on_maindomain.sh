@@ -20,7 +20,7 @@ read -p "Enter admin email: " ADMIN_EMAIL
 read -sp "Enter MySQL root password (new password): " DB_ROOT_PASSWORD
 echo  # New line after password input
 read -p "Enter Redis maximum memory in GB (should be nearly equal to your database size): " REDIS_MAX_MEMORY
-
+[[ -z "$REDIS_MAX_MEMORY" ]] && REDIS_MAX_MEMORY="1"
 # Update system packages
 echo "Updating system packages..."
 apt update && apt upgrade -y || error_exit "Failed to update system packages"
