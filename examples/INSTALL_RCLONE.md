@@ -9,6 +9,8 @@ This guide provides instructions on how to install and configure rclone for back
 
 ## Installation
 
+Run this on VS code or Remote desktop so that login process does not have port conflict errors
+
 1.  **Enter root user:**
 
     ```bash
@@ -19,65 +21,57 @@ This guide provides instructions on how to install and configure rclone for back
 
     ```bash
     sudo apt update
+    ```
+    ```bash
     sudo apt install rclone
     ```
 
-## Configuration
-
-1.  **Run rclone config:**
+3.  **Run rclone config:**
 
     ```bash
     rclone config
     ```
 
-2.  **Create a new remote:**
+4.  **Create a new remote (with Google drive):**
 
     *   Select `n` for new remote.
     *   Name it `my_remote`.
-        *   Select Google Drive (option `13` or `18` depending on your rclone version).
-        *   For `client_id` and `client_secret`, follow the instructions to create your own OAuth 2.0 credentials.
-        *   Select `1` for full access to all files.
+    *   Select Google Drive (option `13` or `18` depending on your rclone version).
+    *   For setup without `client_id` and `client_secret`, press Enter to use auto config. 
+    *   For setup with `client_id` and `client_secret`
+    *    - Go to <https://console.cloud.google.com/>
+    *    - Click on the project drop-down and select "New Project".
+    *    - Give your project a name (e.g., "rclone-active") and click "Create".
+    *    - With your new project selected, go to the Google API Library.
+    *    - Search for "Google Drive API" and click on it.    
+    *    - Go to the Credentials page in the Google Cloud Console.
+    *    - Click "Enable".
+    *    - Click "Create Credentials" and select "OAuth client ID".
+    *    - If prompted, configure the consent screen by providing necessary information like application name, email, and scopes.
+    *    - Click "Create Credentials" and select "OAuth client ID" again.
+    *    - For the application type, choose "Desktop app" and click "Create".
+    *    - After creating the credentials, you’ll be presented with a client ID and client secret. 
+    *    - Click "Download" to save the credentials as a JSON file.
+    *   Select `1` for full access to all files.
+    *   Leave blank "service_account_file>" and enter
+    *   Select No (default) for Edit advanced config?
+    *   Select Yes (default) for Use auto config?
     *   When the browser opens, use the **SECOND** link if multiple appear.
     *   Log in with your Google account and authorize rclone.
+    *   Select No (default) for Configure this as a Shared Drive (Team Drive)?
+    *   Select Yes this is OK (default)Keep this "server_silkroademart" remote?
     *   Select `y` to confirm the configuration is correct.
     *   Select `q` to quit config.
 
-    **Important:** Run this configuration from a desktop session with Chrome installed to avoid port conflict errors.
-
 ## Google Cloud Console Credentials
-
-1.  **Log in to Google Cloud Console:**
-
-    Go to <https://console.cloud.google.com/>
-
-2.  **Create a Project:**
-
-    *   Click on the project drop-down and select "New Project".
-    *   Give your project a name (e.g., "rclone-active") and click "Create".
-
-3.  **Enable the Google Drive API:**
-
-    *   With your new project selected, go to the Google API Library.
-    *   Search for "Google Drive API" and click on it.
-    *   Click "Enable".
-
-4.  **Create OAuth 2.0 Credentials:**
-
-    *   Go to the Credentials page in the Google Cloud Console.
-    *   Click "Create Credentials" and select "OAuth client ID".
-    *   If prompted, configure the consent screen by providing necessary information like application name, email, and scopes.
-    *   Click "Create Credentials" and select "OAuth client ID" again.
-    *   For the application type, choose "Desktop app" and click "Create".
-    *   After creating the credentials, you’ll be presented with a client ID and client secret.
-    *   Click "Download" to save the credentials as a JSON file.
 
     Example Credentials:
 
     ```text
     Client ID: your_client_id
-        Client Secret: your_client_secret
-        ```
-    80 |
+    Client Secret: your_client_secret
+    ```
+
 ## Verification
 
 1.  **Create a folder inside the rclone associated folder in Google Drive.**
@@ -93,55 +87,35 @@ This guide provides instructions on how to install and configure rclone for back
 
 ## Usage
 
-1.  **Check size of server folders:**
+1.  **Check Size of Google Drive folders:**
 
     ```bash
-    du -sh /path/to/website
-        ```
-    101 |
-    2.  **Check Size of Google Drive folders:**
-    103 |
-        ```bash
-        rclone size "my_remote:"
-        rclone size "my_remote:folder1/"
-        ```
+    rclone size "remote_name:"
+    rclone size "remote_name:/path/to/folder/"
+    ```   ```
 
-3.  **Transfer from server to Google Drive:**
+2. **Check latest backup files**
 
     ```bash
-    rclone sync /path/to/backup "my_remote:"
-        rclone sync /path/to/backup "my_remote:" --progress
-        ```
-    115 |
-    ## Cron Job for Automatic Backups
+    rclone lsl "remote_name:/path/to/folder/" | sort -k2,2 | tail -n 2
+  
 
-1.  **Set up a cron job:**
+3. **Restore from Google Drive**
 
     ```bash
-    0 5 */1 * * /usr/bin/rclone copy /path/to/backup "my_remote:" --log-file=/var/log/rclone.log
-        ```
-    123 |
-        This command will create a daily backup at 5:00 AM. The `copy` command preserves all versions of your backups. Use `sync` if you want to overwrite older backups with the latest version.
+    rclone copy -v remote_name:/path/to/folder/backup.tar.gz /path/to/backup --progress
+    ```
 
-## Restore from Google Drive
+## Cron Job for Automatic Backups
 
-1.  **Restore files:**
+    **Set up a cron job:**
 
     ```bash
-    rclone sync -v my_remote: /path/to/backup --progress
-        ```
-    133 |
-        or
-    135 |
-        ```bash
-        rclone copy -v my_remote:backup.tar.gz /path/to/backup --progress
-        ```
-    139 |
-        or
-    141 |
-        ```bash
-        rclone copy -v my_remote:folder1/backup.tar.gz /path/to/backup --progress
-        ```
+    0 5 */1 * * /usr/bin/rclone copy /path/to/backup "remote_name:" --log-file=/var/log/rclone.log
+    ```
+
+    This command will create a daily backup at 5:00 AM.  The `copy` command preserves all versions of your backups.  Use `sync` if you want to overwrite older backups with the latest version.
+
 
 ## Uninstallation
 
@@ -149,3 +123,23 @@ This guide provides instructions on how to install and configure rclone for back
 
     ```bash
     sudo apt remove rclone
+
+
+## Other commands to  restore files (Test carefully before real use)
+
+    ```bash
+    rclone copy -v remote_name:backup.tar.gz /path/to/backup --progress
+    ```
+
+    or
+
+    ```bash
+    rclone sync -v remote_name: /path/to/backup --progress
+    ```
+
+    Sync server to Google Drive (Test this carefully before real execution):**
+
+    ```bash
+    rclone sync /path/to/backup "remote_name:"
+    rclone sync /path/to/backup "remote_name:" --progress
+    ```
