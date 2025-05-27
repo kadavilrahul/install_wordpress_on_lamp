@@ -12,7 +12,7 @@ This Bash script automates the installation of a LAMP stack, WordPress, and phpM
 * Downloads and configures WordPress
 * Sets up a MySQL database and user for WordPress
 * Configures WordPress settings
-* Installs and links phpMyAdmin
+* Installs other related services
 
 ## Prerequisites
 
@@ -20,7 +20,6 @@ Before running the script, ensure that you:
 
 * Have a fresh Ubuntu installation
 * Have sudo privileges
-* Update the script variables according to your domain and database credentials
 
 ## Installation
 
@@ -41,20 +40,30 @@ cd install_wordpress_on_lamp
 
 Execute the script with:
 
+For installing wordpress on main domain like example.com
+
 ```bash
 bash install_on_maindomain.sh
 ```
+For installing wordpress onmain domain like example.com
+
 ```bash
 bash install_on_subdomain.sh
 ```
+For installing wordpress onsubdirectory like example.com/wordpress
+(Note that many plugins will not function properly in this setup)
+
 ```bash
 bash install_on_subdirectory.sh
 ```
 
-### 4. Open your domain/subdomain on browser and complete wordpress installtion
+### 4. Complete wordpress installtion on browser
 
-### 5. If you need to migrate wordpress from another server use below script
-https://github.com/kadavilrahul/wordpress_backup_migrate_and_restore.git
+* Enter your domain/subdomain/subdirectory URL on browser 
+* Enter site title
+* Enter username
+* Enter password
+* Enter admin email ID
 
 ## Features
 
@@ -66,22 +75,7 @@ https://github.com/kadavilrahul/wordpress_backup_migrate_and_restore.git
 
 ## Troubleshooting
 
-Ensure MySQL service is running before executing the script:
-```bash
-sudo systemctl start mysql
-```
 
-Check Apache status if WordPress does not load:
-```bash
-sudo systemctl status apache2
-```
-
-Verify MySQL credentials if the database setup fails.
-
-If phpMyAdmin is not accessible, check the symlink:
-```bash
-ls -l /var/www/html/phpmyadmin
-```
 
 ## License
 
