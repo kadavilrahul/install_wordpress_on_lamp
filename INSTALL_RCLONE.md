@@ -123,7 +123,6 @@ Run this on VS code or Remote desktop so that login process does not have port c
     ```bash
     sudo apt remove rclone
 
-
 ## Other commands to  restore files (Test carefully before real use)
 
     ```bash
