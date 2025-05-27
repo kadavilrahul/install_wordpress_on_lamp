@@ -16,7 +16,8 @@ read -p "Enter main domain name (e.g., silkroademart.com): " MAIN_DOMAIN
 read -p "Enter subdomain name (e.g., wholesale or products): " SUBDOMAIN
 read -p "Enter admin email: " ADMIN_EMAIL
 read -sp "Enter MySQL root password: " DB_ROOT_PASSWORD
-read -p "Enter Redis maximum memory in GB (should be nearly equal to your database size): " REDIS_MAX_MEMORY
+read -p "Enter Redis maximum memory in GB (Default is 1GB, it should be nearly equal to your database size): " REDIS_MAX_MEMORY
+[[ -z "$REDIS_MAX_MEMORY" ]] && REDIS_MAX_MEMORY="1"
 echo  # New line after password input
 
 # Construct full domain
@@ -162,8 +163,10 @@ sed -i \
 MYSQL_CONF="/etc/mysql/mysql.conf.d/mysqld.cnf"
 echo -e "[mysqld]\nexpire_logs_days = 1" | sudo tee -a $MYSQL_CONF > /dev/null
 
-# Restart MySQL to apply changes
+# Restart to apply changes
 systemctl restart mysql
+systemctl restart apache2
+systemctl restart php8.3-fpm
 
 # Before the final echo statements, add this code:
 
@@ -197,6 +200,16 @@ Certificate Path: /etc/letsencrypt/live/$FULL_DOMAIN/
 Auto-renewal: Twice daily check (0:00 and 12:00)
 
 Please save this information securely!
+
+SSL Certificate:
+--------------
+Certificate Path: /etc/letsencrypt/live/$FULL_DOMAIN/
+Auto-renewal: Twice daily check (0:00 and 12:00)
+
+Additional Services:
+-----------------
+Redis: Enabled (${REDIS_MAX_MEMORY}GB max memory)
+OPcache: Enabled
 SUMMARY
 
 # Set proper permissions for the summary file
