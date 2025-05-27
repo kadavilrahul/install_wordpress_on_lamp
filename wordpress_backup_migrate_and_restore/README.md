@@ -14,9 +14,6 @@ This repository provides automated solutions for backing up and restoring WordPr
 - Verifies database backup integrity
 - Supports multiple websites in a single backup run
 
-## If you need to install wordpress on LAMP use below script
-https://github.com/kadavilrahul/install_wordpress_on_lamp
-
 ## Prerequisites
 
 - Bash shell environment
@@ -55,19 +52,13 @@ Linux:
 
 **On the source server:**
 
-1.  Clone the repository:
-
-    ```bash
-    git clone https://github.com/kadavilrahul/wordpress_backup_migrate_and_restore.git
-    ```
-
-2.  Navigate to the repository directory:
+1.  Navigate to the repository directory:
 
     ```bash
     cd backup_and_restore
     ```
 
-3.  Run the backup scripts:
+2.  Run the backup scripts:
 
     ```bash
     bash backup_wordpress.sh
@@ -77,7 +68,7 @@ Linux:
     bash backup_postgres.sh
     ```
 
-4.  Run the transfer script:
+3.  Run the transfer script:
 
     ```bash
     bash transfer_all.sh
@@ -85,19 +76,13 @@ Linux:
 
 **On the destination server:**
 
-1.  Clone the repository:
-
-    ```bash
-    git clone https://github.com/kadavilrahul/wordpress_backup_migrate_and_restore.git
-    ```
-
-2.  Navigate to the repository directory:
+1.  Navigate to the repository directory:
 
     ```bash
     cd backup_and_restore
     ```
 
-3.  Run the restore scripts:
+2.  Run the restore scripts:
 
     ```bash
     bash restore_wordpress.sh
