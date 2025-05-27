@@ -92,7 +92,7 @@ Run this on VS code or Remote desktop so that login process does not have port c
     ```bash
     rclone size "remote_name:"
     rclone size "remote_name:/path/to/folder/"
-    ```   ```
+    ```
 
 2. **Check latest backup files**
 
