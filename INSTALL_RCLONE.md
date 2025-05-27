@@ -107,7 +107,7 @@ Run this on VS code or Remote desktop so that login process does not have port c
     
 ## Cron Job for Automatic Backups
 
-    **Set up a cron job:**
+    Set up a cron job:
 
     ```bash
     0 5 */1 * * /usr/bin/rclone copy /path/to/backup "remote_name:" --log-file=/var/log/rclone.log
@@ -122,6 +122,7 @@ Run this on VS code or Remote desktop so that login process does not have port c
 
     ```bash
     sudo apt remove rclone
+    ```
 
 ## Other commands to  restore files (Test carefully before real use)
 
