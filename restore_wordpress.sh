@@ -1,9 +1,3 @@
-# Important: Point the DNS correctly both main domain and www and subdomains
-# Use nano command to copy code from windows to Linux else there will be error due to Windows-style line endings
-# sudo nano restore.sh
-# bash restore.sh
-# rm -r /root/restore.sh
-
 #!/bin/bash
 
 # Configuration

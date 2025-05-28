@@ -104,7 +104,21 @@ Restore backups from tar files located in /website_backups folder
 bash restore_wordpress.sh
 ```
 
-### 7. Optionally Backup and restore HTML installation (Postgres database)
+### 7. Troubleshooting
+
+1. If wp-admin fails to load after restoration or on other occassion
+   a) Deactivate all plugins via WP CLI
+   ```bash
+   wp plugin deactivate --all --allow-root --path=/var/www/silkroademart.com
+   ```
+   b) Enter output to chatgpt if error persits
+   C) Manually Remove the Broken Plugin
+   ```bash
+   rm -rf /var/www/silkroademart.com/wp-content/plugins/plugin_name
+   ```
+   d) Reactivate the plugins
+
+### 8. Optionally Backup and restore HTML installation (Postgres database)
 (Note: Files located in wordperess root directory are automatically backed up and restored through full wordpress backup and restore function)
 
 The scripts use the following configuration variables:
@@ -133,10 +147,6 @@ bash restore_postgres.sh
 * Configures Apache and PHP for optimal performance
 * Sets correct file permissions for WordPress
 * Installs and configures phpMyAdmin
-
-## Troubleshooting
-
-
 
 ## License
 
