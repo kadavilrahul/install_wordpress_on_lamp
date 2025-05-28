@@ -115,6 +115,33 @@ bash restore_wordpress.sh
    ```
    d) Reactivate the plugins
 
+2. Check if Apache, MySQl , PHP and fpm are running
+   ```bash
+   sudo systemctl status apache2
+   sudo systemctl restart apache2
+   ```
+
+   ```bash
+   sudo systemctl status mysql
+   sudo systemctl restart mysql
+   ```
+   
+   ```bash
+   php --version
+   systemctl status php8.3-fpm
+   ```
+
+3. Check free memory
+   RAM
+   ```bash
+   free -h
+   ```
+   Disk Space
+   ```bash
+   free -h
+   ```
+   
+
 ### 8. Optionally Backup and restore HTML installation (Postgres database)
 (Note: Files located in wordperess root directory are automatically backed up and restored through full wordpress backup and restore function)
 
