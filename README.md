@@ -109,12 +109,12 @@ bash restore_wordpress.sh
 1. If wp-admin fails to load after restoration or on other occassion
    a) Deactivate all plugins via WP CLI
    ```bash
-   wp plugin deactivate --all --allow-root --path=/var/www/silkroademart.com
+   wp plugin deactivate --all --allow-root --path=/var/www/your_website.com
    ```
    b) Enter output to chatgpt if error persits
    C) Manually Remove the Broken Plugin
    ```bash
-   rm -rf /var/www/silkroademart.com/wp-content/plugins/plugin_name
+   rm -rf /var/www/your_website.com/wp-content/plugins/plugin_name
    ```
    d) Reactivate the plugins
 
