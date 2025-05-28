@@ -12,8 +12,8 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # Prompt for input variables
-read -p "Enter main domain name (e.g., silkroademart.com): " MAIN_DOMAIN
-read -p "Enter subdomain name (e.g., wholesale or products): " SUBDOMAIN
+read -p "Enter main domain name (e.g., exanple.com): " MAIN_DOMAIN
+read -p "Enter subdomain name (e.g., blog): " SUBDOMAIN
 read -p "Enter admin email: " ADMIN_EMAIL
 read -sp "Enter MySQL root password: " DB_ROOT_PASSWORD
 read -p "Enter Redis maximum memory in GB (Default is 1GB, it should be nearly equal to your database size): " REDIS_MAX_MEMORY
