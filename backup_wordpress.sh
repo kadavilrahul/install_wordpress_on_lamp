@@ -98,8 +98,6 @@ for site_dir in "${WWW_PATH}"/*; do
         
         if is_wordpress "${site_dir}"; then
             backup_wordpress "${site_dir}" "${site_name}"
-        else
-            backup_html "${site_dir}" "${site_name}"
         fi
     fi
 done
