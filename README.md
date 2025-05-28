@@ -140,7 +140,19 @@ bash restore_wordpress.sh
    ```bash
    free -h
    ```
-   
+
+4. Check Apache error logs
+
+   ```bash
+   tail -n 20 /var/log/apache2/error.log
+   ```
+   Replace yourdomain.com with actual domain name in below command
+   ```bash
+   tail -n 50 /var/log/apache2/error_yourdomain.com.log
+   ```
+
+5. Error establishing a Redis connection
+   To disable Redis, delete the object-cache.php file in the /wp-content/ directory.
 
 ### 8. Optionally Backup and restore HTML installation (Postgres database)
 (Note: Files located in wordperess root directory are automatically backed up and restored through full wordpress backup and restore function)
