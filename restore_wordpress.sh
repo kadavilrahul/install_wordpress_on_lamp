@@ -129,22 +129,7 @@ restore_wordpress() {
     log_message "Restoration completed for ${site_name}"
 }
 
-# Function to restore HTML site
-restore_html() {
-    local backup_file="${1}"
-    local site_name="${2}"
-    local target_dir="${WWW_PATH}/${site_name}"
-    
-    log_message "Starting HTML site restoration for: ${site_name}"
-    
-    mkdir -p "${target_dir}" || error_exit "Failed to create target directory"
-    tar -xzf "${backup_file}" -C "${WWW_PATH}" || error_exit "Failed to extract backup"
-    
-    chown -R www-data:www-data "${target_dir}"
-    chmod 755 "${target_dir}"
-    
-    log_message "Restoration completed for ${site_name}"
-}
+
 
 # Function to list backups with serial numbers
 list_and_store_backups() {
@@ -202,8 +187,6 @@ fi
 
 if is_wordpress_backup "${selected_backup}"; then
     restore_wordpress "${selected_backup}" "${TARGET_SITE}"
-else
-    restore_html "${selected_backup}" "${TARGET_SITE}"
 fi
 
 log_message "Restoration process completed successfully"
