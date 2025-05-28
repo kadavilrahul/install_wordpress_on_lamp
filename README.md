@@ -71,7 +71,24 @@ Read file INSTALL_RCLONE.md
 
 ### 6. Backup and restore Wordpress installation
 
+Trasnfer backup from an older server
+
+```bash
+bash transfer_backup_from_old_server.sh
+```
+
 Create backups in the form of tar files to /website_backups folder
+
+The scripts use the following configuration variables:
+
+```bash
+WWW_PATH="/var/www"                    # Path to website root directories
+BACKUP_DIR="/website_backups"          # Main backup directory
+WEB_BACKUP_DIR="${BACKUP_DIR}/web"     # Website backups location
+PG_BACKUP_DIR="${BACKUP_DIR}/postgresql" # PostgreSQL backups location
+BACKUP_RETENTION_DAYS=7                # Number of days to keep backups
+DB_CREDENTIALS_FILE="/etc/website_db_credentials.conf" # Database credentials file
+```
 
 ```bash
 bash backup_wordpress.sh
@@ -84,6 +101,18 @@ bash restore_wordpress.sh
 ```
 ### 7. Optionally Backup and restore HTML installation (Postgres database)
 (Note: Files located in wordperess root directory are automatically backed up and restored through full wordpress backup and restore function)
+
+The scripts use the following configuration variables:
+
+```bash
+PG_BACKUP_DIR="${BACKUP_DIR}/postgresql" # PostgreSQL backups location
+```
+The script expects PostgreSQL database credentials in the following format:
+
+```
+Domain: example.com
+Database: example_db
+```
 
 ```bash
 bash backup_postgres.sh
