@@ -1,8 +1,3 @@
-# sudo nano backup.sh
-# bash backup.sh
-# rm -r /root/backup.sh
-# backs up all wordpress websites on a server in location /var/www/ 
-
 #!/bin/bash
 
 # Configuration
@@ -76,33 +71,6 @@ backup_wordpress() {
     if [ -f "${site_path}/${db_dump_name}" ]; then
         rm -f "${site_path}/${db_dump_name}"
     fi
-    
-    log_message "Backup completed for ${site_name}"
-}
-
-# Function to backup HTML site
-backup_html() {
-    local site_path="${1}"
-    local site_name="${2}"
-    
-    log_message "Starting HTML backup for: ${site_name}"
-    
-    # Create backup
-    local backup_name="${site_name}_html_backup_${TIMESTAMP}.tar.gz"
-    
-    pushd "${WWW_PATH}" > /dev/null || error_exit "Cannot change to www directory"
-    
-    # Handle file changes during backup
-    tar --warning=no-file-changed -czf "${BACKUP_DIR}/${backup_name}" \
-        --exclude="${site_name}/cache" \
-        "${site_name}" || {
-        local tar_exit=$?
-        if [ $tar_exit -ne 0 ] && [ $tar_exit -ne 1 ]; then
-            popd > /dev/null
-            error_exit "Tar backup failed for ${site_name}"
-        fi
-    }
-    popd > /dev/null
     
     log_message "Backup completed for ${site_name}"
 }
