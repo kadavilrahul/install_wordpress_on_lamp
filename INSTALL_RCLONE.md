@@ -56,7 +56,7 @@ Run this on VS code or Remote desktop so that login process does not have port c
     *   Leave blank "service_account_file>" and enter
     *   Select No (default) for Edit advanced config?
     *   Select Yes (default) for Use auto config?
-    *   When the browser opens, use the **SECOND** link if multiple appear.
+    *   Click the link in text "If your browser doesn't open automatically go to the following link: http:...."
     *   Log in with your Google account and authorize rclone.
     *   Select No (default) for Configure this as a Shared Drive (Team Drive)?
     *   Select Yes this is OK (default)Keep this "server_silkroademart" remote?
@@ -102,7 +102,7 @@ Run this on VS code or Remote desktop so that login process does not have port c
 3. **Restore latest files from Google Drive:**
 
     ```bash
-    read -p "How many latest backup files do you want to copy? (1 or 2): " NUM && [[ "$NUM" == "1" || "$NUM" == "2" ]] && rclone lsl "remote_name:/path/to/folder/" | sort -k2,2 | tail -n $NUM | awk '{print $NF}' | xargs -I{} rclone copy -v "server_silkroademart:backup_silkroademart/{}" /website_backups --progress || echo "Invalid input. Please enter 1 or 2."
+    read -p "How many latest backup files do you want to copy? (1 or 2): " NUM && [[ "$NUM" == "1" || "$NUM" == "2" ]] && rclone lsl "remote_name:/path/to/folder/" | sort -k2,2 | tail -n $NUM | awk '{print $NF}' | xargs -I{} rclone copy -v "remote_name:/path/to/folder/{}" /website_backups --progress || echo "Invalid input. Please enter 1 or 2."
     ```
     
 ## Cron Job for Automatic Backups

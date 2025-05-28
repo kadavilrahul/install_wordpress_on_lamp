@@ -65,11 +65,15 @@ bash install_on_subdirectory.sh
 * Enter password
 * Enter admin email ID
 
-### 5. Optionally Install Rclone to transfer backups to cloud like google drive
+### 5. Optionally Install Rclone to transfer backups to cloud like google drive and vice versa
 
 Read file INSTALL_RCLONE.md
 
 ### 6. Backup and restore Wordpress installation
+
+Execute command from file INSTALL_RCLONE.md to transfer backups from cloud to server
+
+or 
 
 Trasnfer backup from an older server
 
@@ -77,7 +81,7 @@ Trasnfer backup from an older server
 bash transfer_backup_from_old_server.sh
 ```
 
-Create backups in the form of tar files to /website_backups folder
+To create backups in the form of tar files to /website_backups folder
 
 The scripts use the following configuration variables:
 
@@ -99,6 +103,7 @@ Restore backups from tar files located in /website_backups folder
 ```bash
 bash restore_wordpress.sh
 ```
+
 ### 7. Optionally Backup and restore HTML installation (Postgres database)
 (Note: Files located in wordperess root directory are automatically backed up and restored through full wordpress backup and restore function)
 
