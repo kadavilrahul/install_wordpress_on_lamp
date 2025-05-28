@@ -71,16 +71,6 @@ Read file INSTALL_RCLONE.md
 
 ### 6. Backup and restore Wordpress installation
 
-Execute command from file INSTALL_RCLONE.md to transfer backups from cloud to server
-
-or 
-
-Trasnfer backup from an older server
-
-```bash
-bash transfer_backup_from_old_server.sh
-```
-
 To create backups in the form of tar files to /website_backups folder
 
 The scripts use the following configuration variables:
@@ -96,6 +86,13 @@ DB_CREDENTIALS_FILE="/etc/website_db_credentials.conf" # Database credentials fi
 
 ```bash
 bash backup_wordpress.sh
+```
+Execute command from file INSTALL_RCLONE.md to transfer backups from cloud to server
+or 
+Trasnfer backup from an older server
+
+```bash
+bash transfer_backup_from_old_server.sh
 ```
 
 Restore backups from tar files located in /website_backups folder
