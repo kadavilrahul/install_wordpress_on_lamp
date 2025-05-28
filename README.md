@@ -69,6 +69,29 @@ bash install_on_subdirectory.sh
 
 Read file INSTALL_RCLONE.md
 
+### 6. Backup and restore Wordpress installation
+
+Create backups in the form of tar files to /website_backups folder
+
+```bash
+bash backup_wordpress.sh
+```
+
+Restore backups from tar files located in /website_backups folder
+
+```bash
+bash restore_wordpress.sh
+```
+### 7. Optionally Backup and restore HTML installation (Postgres database)
+(Note: Files located in wordperess root directory are automatically backed up and restored through full wordpress backup and restore function)
+
+```bash
+bash backup_postgres.sh
+```
+```bash
+bash restore_postgres.sh
+```
+
 ## Features
 
 * Fully automated WordPress setup
