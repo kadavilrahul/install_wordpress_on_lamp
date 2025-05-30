@@ -117,6 +117,7 @@ redis-cli info memory | grep -E "(used_memory_human|maxmemory_human)"
 - Modify php max execution time, max memory, upload file size, post max size, max input time
 - Uninterrupted fire wall UFW
 - Fail2ban
+- Check php information at your_website.com/info.php
 
 ```bash
 bash miscellaneous.sh
