@@ -108,14 +108,17 @@ bash restore_wordpress.sh
    ```bash
    wp plugin deactivate --all --allow-root --path=/var/www/your_website.com
    ```
-   b) Enter output to chatgpt if error persits
-   C) Manually Remove the Broken Plugin
+   
+   b) Enter output to chatgpt if error persits.
+   
+   c) Manually Remove the Broken Plugin
    ```bash
    rm -rf /var/www/your_website.com/wp-content/plugins/plugin_name
    ```
+   
    d) Reactivate the plugins
 
-2. Check if Apache, MySQL , PHP and FPM are running
+3. Check if Apache, MySQL , PHP and FPM are running
    ```bash
    Status
    sudo systemctl status apache2
@@ -138,7 +141,7 @@ bash restore_wordpress.sh
    systemctl restart php8.3-fpm
    ```
 
-3. Check free memory
+4. Check free memory
    RAM
    ```bash
    free -h
