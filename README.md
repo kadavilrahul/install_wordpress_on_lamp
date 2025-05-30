@@ -115,7 +115,7 @@ bash restore_wordpress.sh
    ```
    d) Reactivate the plugins
 
-2. Check if Apache, MySQl , PHP and fpm are running
+2. Check if Apache, MySQL , PHP and FPM are running
    ```bash
    Status
    sudo systemctl status apache2
@@ -145,10 +145,20 @@ bash restore_wordpress.sh
    ```
    Disk Space
    ```bash
-   free -h
+   df -h
    ```
-
-4. Check Apache error logs
+   Folder Space
+   ```bash
+   du -sh /var/
+   ```
+   ```bash
+   du -sh /var/lib
+   ```
+   ```bash
+   du -sh /var/lib/mysql
+   ```
+   
+5. Check Apache error logs
 
    ```bash
    tail -n 20 /var/log/apache2/error.log
@@ -158,7 +168,7 @@ bash restore_wordpress.sh
    tail -n 50 /var/log/apache2/error_yourdomain.com.log
    ```
 
-5. Error establishing a Redis connection
+6. Error establishing a Redis connection
    To disable Redis, delete the object-cache.php file in the /wp-content/ directory.
 
 ### 8. Optionally Backup and restore HTML installation (Postgres database)
