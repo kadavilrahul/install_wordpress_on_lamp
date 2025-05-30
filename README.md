@@ -40,17 +40,17 @@ cd install_wordpress_on_lamp
 
 Execute the script with:
 
-For installing wordpress on main domain like example.com
+For installing wordpress on main domain like your_website.com
 
 ```bash
 bash install_on_maindomain.sh
 ```
-For installing wordpress onmain domain like example.com
+For installing wordpress onmain domain like your_website.com
 
 ```bash
 bash install_on_subdomain.sh
 ```
-For installing wordpress onsubdirectory like example.com/wordpress
+For installing wordpress onsubdirectory like your_website.com/wordpress
 (Note that many plugins will not function properly in this setup)
 
 ```bash
@@ -119,7 +119,7 @@ bash restore_wordpress.sh
    d) Reactivate the plugins
 
    ```
-   wp plugin activate --all --path=/var/www/your-website.com --allow-root
+   wp plugin activate --all --path=/var/www/your_website.com --allow-root
    ```
 
 3. Check if Apache, MySQL , PHP and FPM are running
@@ -185,7 +185,7 @@ bash restore_wordpress.sh
    ```
    After making this change, clear your debug log again:
    ```
-   > /var/www/your-website.com/wp-content/debug.log
+   > /var/www/your_website.com/wp-content/debug.log
    ```
    Then, try accessing your wp-admin and check the log for new errors.
    This should eliminate the warnings and help you find the real issue.
@@ -208,7 +208,7 @@ bash restore_wordpress.sh
 
    After making this change, clear your debug log again:
    ```
-   > /var/www/your-website.com/wp-content/debug.log
+   > /var/www/your_website.com/wp-content/debug.log
    ```
 
    
