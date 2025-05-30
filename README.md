@@ -137,13 +137,13 @@ Verify change
 timedatectl status
 ```
 
-### 9. Optionally install phpmyadmin
+### 10. Optionally install phpmyadmin
 
 ```bash
 bash php_myadmin.sh
 ```
 
-### 8. Optionally Backup and restore HTML installation (Postgres database)
+### 11. Optionally Backup and restore HTML installation (Postgres database)
 (Note: Files located in wordperess root directory are automatically backed up and restored through full wordpress backup and restore function)
 
 The scripts use the following configuration variables:
