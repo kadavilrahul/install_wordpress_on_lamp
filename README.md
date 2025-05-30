@@ -138,13 +138,68 @@ Verify change
 timedatectl status
 ```
 
-### 10. Optionally install phpmyadmin
+### 10. Cron jobs for automatic execution
+
+- Renew SSL every week
+```bash
+(crontab -l 2>/dev/null; echo "0 2 * * 0 python3 -c 'import random; import time; time.sleep(random.random() * 3600)' && certbot renew --quiet") | crontab -
+```
+- Verify cron job
+```bash
+crontab -l
+```
+
+## Optional Installations:
+
+### 1. Disable or enable root login for security
+
+- Create a new user with root privileges first 
+  You’ll be prompted to set a password and (optionally) fill in user details.
+
+```bash
+sudo adduser newusername
+```
+- Add the User to the sudo Group. This gives the user root privileges via sudo.
+```bash
+sudo usermod -aG sudo newusername
+```
+- Open a new terminal and try logging in:
+```bash
+ssh newusername@your_ip_address
+```
+Then test sudo:
+```bash
+sudo whoami
+```
+If you need to login to new user from root
+```bash
+su newusername
+```
+Now run ssh control script
+Disable root login
+```bash
+bash /root/install_wordpress_on_lamp/ssh_control.sh disable
+```
+Login to another user:
+```bash
+ssh newusername@your_ip_address
+```
+Enter root
+```bash
+sudo -i
+```
+Enable root login
+```bash
+bash /root/install_wordpress_on_lamp/ssh_control.sh enable
+```
+
+### 2. phpmyadmin
 
 ```bash
 bash php_myadmin.sh
 ```
 
-### 11. Optionally Backup and restore HTML installation (Postgres database)
+### 3. Backup and restore HTML installation (Postgres database)
 (Note: Files located in wordperess root directory are automatically backed up and restored through full wordpress backup and restore function)
 
 The scripts use the following configuration variables:
@@ -166,18 +221,9 @@ bash backup_postgres.sh
 bash restore_postgres.sh
 ```
 
-## Features
-
-* Fully automated WordPress setup
-* Secure MySQL database and user creation
-* Configures Apache and PHP for optimal performance
-* Sets correct file permissions for WordPress
-* Installs and configures phpMyAdmin
-
 ## License
 
 This script is released under the MIT License.
-
 
 ## Contributions
 
