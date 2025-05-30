@@ -144,6 +144,8 @@ timedatectl status
 ```bash
 (crontab -l 2>/dev/null; echo "0 2 * * 0 python3 -c 'import random; import time; time.sleep(random.random() * 3600)' && certbot renew --quiet") | crontab -
 ```
+
+
 - Verify cron job
 ```bash
 crontab -l
