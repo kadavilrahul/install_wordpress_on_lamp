@@ -148,10 +148,10 @@ timedatectl status
 Backup websites 
 
 ```bash
-(crontab -l 2>/dev/null; echo "0 1 * * * /root/install_wordpress_on_lamp/backup_wordpress.sh") | crontab -
+(crontab -l 2>/dev/null; echo "0 1 * * * bash install_wordpress_on_lamp/backup_wordpress.sh") | crontab -
 ```
 
-Transfer files google drive through rclone:
+Transfer files to google drive through rclone:
 
 Change remote_name:/path/to/folder to actual remote name and path of cloud drive
 

@@ -115,7 +115,6 @@ Note: Change remote_name:/path/to/folder to actual remote name and path of cloud
 
     This command will create a daily backup at 5:00 AM.  The `copy` command preserves all versions of your backups.  Use `sync` if you want to overwrite older backups with the latest version.
 
-
 ## Uninstallation
 
 1.  **Uninstall rclone:**
