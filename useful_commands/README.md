@@ -40,8 +40,3 @@ GROUP BY table_schema;
 ```bash
 EXIT;
 ```
-
-### Exit:
-```bash
-EXIT;
-```
