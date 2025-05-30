@@ -170,9 +170,9 @@ bash restore_wordpress.sh
    ```bash
    tail -n 20 /var/log/apache2/error.log
    ```
-   Replace yourdomain.com with actual domain name in below command
+   Replace your_website.com with actual domain name in below command
    ```bash
-   tail -n 50 /var/log/apache2/error_yourdomain.com.log
+   tail -n 50 /var/log/apache2/error_your_website.com.log
    ```
 6. Check php error logs
 
@@ -191,11 +191,11 @@ bash restore_wordpress.sh
    This should eliminate the warnings and help you find the real issue.
 
    ```
-   grep -i "fatal" /var/www/nilgiristores.in/wp-content/debug.log | tail -20
+   grep -i "fatal" /var/www/your_website.com/wp-content/debug.log | tail -20
    ```
    or
    ```
-   grep -i "error" /var/www/nilgiristores.in/wp-content/debug.log | tail -30
+   grep -i "error" /var/www/your_website.com/wp-content/debug.log | tail -30
    ```
    Copy and paste error into chatgpt and resolvet it.
 
