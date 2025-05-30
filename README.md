@@ -117,18 +117,25 @@ bash restore_wordpress.sh
 
 2. Check if Apache, MySQl , PHP and fpm are running
    ```bash
+   Status
    sudo systemctl status apache2
+   Restart
    sudo systemctl restart apache2
    ```
 
    ```bash
+   Status
    sudo systemctl status mysql
+   Restart
    sudo systemctl restart mysql
    ```
    
    ```bash
    php --version
+   Status
    systemctl status php8.3-fpm
+   Restart
+   systemctl restart php8.3-fpm
    ```
 
 3. Check free memory
