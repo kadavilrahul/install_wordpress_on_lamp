@@ -6,17 +6,48 @@ error_exit() {
     exit 1
 }
 
+# Helper function for yes/no confirmation
+confirm() {
+    read -p "$1 (y/n): " -n 1 -r
+    echo
+    [[ $REPLY =~ ^[Yy]$ ]]
+}
 # Initial required inputs
 echo "Please provide the following basic information:"
 read -p "Enter swap file size in GB (e.g., 3): " SWAP_SIZE
 
-# 1. Initial System Update
+# Function to select a directory
+select_directory() {
+  local i=1
+  local directories=()
+  echo "Available directories in /var/www/:"
+  for dir in /var/www/*; do
+    if [ -d "$dir" ]; then
+      echo "  $i) $(basename "$dir")"
+      directories+=("$dir")
+      ((i++))
+    fi
+  done
+
+  read -p "Enter the number of the website directory: " choice
+  if [[ "$choice" -ge 1 && "$choice" -lt $i ]]; then
+    WP_DIR="${directories[$choice-1]}"
+    echo "You selected: $WP_DIR"
+  else
+    echo "Invalid choice. Please try again."
+    select_directory
+  fi
+}
+
+select_directory
+
+# Initial System Update
 if confirm "Do you want to update the system?"; then
     echo "Updating system..."
     apt update && apt upgrade -y || error_exit "Failed to update system"
 fi
 
-# 3. Configure PHP
+# Configure PHP
 if confirm "Do you want to configure PHP?"; then
     echo "Configuring PHP..."
     PHP_INI_PATH=$(php -i | grep "Loaded Configuration File" | awk '{print $5}')
@@ -27,7 +58,7 @@ if confirm "Do you want to configure PHP?"; then
     sed -i "s/max_input_time = .*/max_input_time = 300/" "$PHP_INI_PATH"
 fi
 
-# 8. Install and configure additional services
+# Install and configure additional services
 if confirm "Do you want to install and configure UFW firewall?"; then
     echo "Installing and configuring UFW firewall..."
     apt install ufw -y
@@ -56,5 +87,11 @@ fi
 if confirm "Do you want to install additional utilities (plocate, rclone, pv, rsync)?"; then
     apt install -y plocate rclone pv rsync
 fi
+
+# Create PHP info file
+echo "<?php phpinfo(); ?>" > "$WP_DIR/info.php"
+
+# Final Apache restart
+systemctl restart apache2
 
 echo "Installation and configuration completed!"

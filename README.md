@@ -111,6 +111,38 @@ bash redis.sh
 redis-cli info memory | grep -E "(used_memory_human|maxmemory_human)"
 ```
 
+### 8. Miscellaneous tools
+
+- Create SWAP memory, 
+- Modify php max execution time, max memory, upload file size, post max size, max input time
+- Uninterrupted fire wall UFW
+- Fail2ban
+
+```bash
+bash miscellaneous.sh
+```
+
+### 9. Modify time zone
+
+Check your zone
+```bash
+timedatectl list-timezones
+```
+Change timezone. Replace Asia/Kolkata wit yours
+```bash
+sudo timedatectl set-timezone Asia/Kolkata
+```
+Verify change
+```bash
+timedatectl status
+```
+
+### 9. Optionally install phpmyadmin
+
+```bash
+bash php_myadmin.sh
+```
+
 ### 8. Optionally Backup and restore HTML installation (Postgres database)
 (Note: Files located in wordperess root directory are automatically backed up and restored through full wordpress backup and restore function)
 
