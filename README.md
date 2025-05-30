@@ -145,6 +145,19 @@ timedatectl status
 (crontab -l 2>/dev/null; echo "0 2 * * 0 python3 -c 'import random; import time; time.sleep(random.random() * 3600)' && certbot renew --quiet") | crontab -
 ```
 
+Backup websites 
+
+```bash
+(crontab -l 2>/dev/null; echo "0 1 * * * /root/install_wordpress_on_lamp/backup_wordpress.sh") | crontab -
+```
+
+Transfer files google drive through rclone:
+
+Change remote_name:/path/to/folder to actual remote name and path of cloud drive
+
+```bash
+(crontab -l 2>/dev/null; echo "00 03 */1 * * /usr/bin/rclone copy /website_backups remote_name:/path/to/folder/ --log-file=/var/log/rclone.log && find /website_backups -type f -exec rm -f {} \;") | crontab -
+```
 
 - Verify cron job
 ```bash

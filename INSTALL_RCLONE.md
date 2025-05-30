@@ -87,6 +87,8 @@ Run this on VS code or Remote desktop so that login process does not have port c
 
 ## Usage
 
+Note: Change remote_name:/path/to/folder to actual remote name and path of cloud drive
+
 1.  **Check Size of Google Drive folders:**
 
     ```bash
