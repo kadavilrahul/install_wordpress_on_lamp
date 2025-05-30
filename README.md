@@ -118,6 +118,10 @@ bash restore_wordpress.sh
    
    d) Reactivate the plugins
 
+   ```
+   wp plugin activate --all --path=/var/www/your-website.com --allow-root
+   ```
+
 3. Check if Apache, MySQL , PHP and FPM are running
    ```bash
    Status
@@ -170,8 +174,45 @@ bash restore_wordpress.sh
    ```bash
    tail -n 50 /var/log/apache2/error_yourdomain.com.log
    ```
+6. Check php error logs
 
-6. Error establishing a Redis connection
+   Add this to wp-config.php
+   ```
+   # Enable WordPress Debug Mode
+   define('WP_DEBUG', true);
+   define('WP_DEBUG_LOG', true);
+   define('WP_DEBUG_DISPLAY', false);
+   ```
+   After making this change, clear your debug log again:
+   ```
+   > /var/www/your-website.com/wp-content/debug.log
+   ```
+   Then, try accessing your wp-admin and check the log for new errors.
+   This should eliminate the warnings and help you find the real issue.
+
+   ```
+   grep -i "fatal" /var/www/nilgiristores.in/wp-content/debug.log | tail -20
+   ```
+   or
+   ```
+   grep -i "error" /var/www/nilgiristores.in/wp-content/debug.log | tail -30
+   ```
+   Copy and paste error into chatgpt and resolvet it.
+
+   ```
+   # Disable WordPress Debug mode
+   define('WP_DEBUG', false);
+   define('WP_DEBUG_LOG', false);
+   define('WP_DEBUG_DISPLAY', false);
+   ```
+
+   After making this change, clear your debug log again:
+   ```
+   > /var/www/your-website.com/wp-content/debug.log
+   ```
+
+   
+8. Error establishing a Redis connection
    To disable Redis, delete the object-cache.php file in the /wp-content/ directory.
 
 ### 8. Optionally Backup and restore HTML installation (Postgres database)
