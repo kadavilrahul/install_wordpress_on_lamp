@@ -221,9 +221,30 @@ redis-cli info memory | grep -E "(used_memory_human|maxmemory_human)"
    ```
    > /var/www/your_website.com/wp-content/debug.log
    ```
+7. If /var/lib/mysql has become very large then
 
+   Log into MySQL/MariaDB:
+   ```bash
+   mysql -u root -p
+   ```
+   Enter root password
+
+   Check if there are many binary logs
+   ```sql
+   SHOW BINARY LOGS;
+   ```
+   Delete all binary logs
+   ```sql
+   RESET MASTER;
+   ```
+   ```sql
+   EXIT;
+   ```
+   ```bash
+   sudo systemctl restart mysql
+   ```
    
-8. Error establishing a Redis connection
+9. If you see "Error establishing a Redis connection" on webpage.
    To disable Redis, delete the object-cache.php file in the /wp-content/ directory.
 
 ### 8. Optionally Backup and restore HTML installation (Postgres database)
