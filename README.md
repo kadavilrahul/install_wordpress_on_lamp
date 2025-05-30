@@ -67,7 +67,7 @@ bash install_on_subdirectory.sh
 
 ### 5. Optionally Install Rclone to transfer backups to cloud like google drive and vice versa
 
-Read file INSTALL_RCLONE.md
+Read file INSTALL_RCLONE.md for installation
 
 ### 6. Backup and restore Wordpress installation
 
@@ -100,6 +100,17 @@ Restore backups from tar files located in /website_backups folder
 ```bash
 bash restore_wordpress.sh
 ```
+
+### 7. Modify redis max memory
+
+```bash
+bash redis.sh
+```
+
+```bash
+redis-cli info memory | grep -E "(used_memory_human|maxmemory_human)"
+```
+
 
 ### 7. Troubleshooting
 
