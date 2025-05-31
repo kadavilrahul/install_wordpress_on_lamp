@@ -140,15 +140,15 @@ timedatectl status
 
 ### 10. Cron jobs for automatic execution
 
-- Renew SSL every week
+- Renew SSL every month
 ```bash
-(crontab -l 2>/dev/null; echo "0 2 * * 0 python3 -c 'import random; import time; time.sleep(random.random() * 3600)' && certbot renew --quiet") | crontab -
+(crontab -l 2>/dev/null; echo "00 02 * */1 0 python3 -c 'import random; import time; time.sleep(random.random() * 3600)' && certbot renew --quiet") | crontab -
 ```
 
-Backup websites 
+Backup websites
 
 ```bash
-(crontab -l 2>/dev/null; echo "0 1 * * * bash install_wordpress_on_lamp/backup_wordpress.sh") | crontab -
+(crontab -l 2>/dev/null; echo "00 01 */1 * * bash install_wordpress_on_lamp/backup_wordpress.sh") | crontab -
 ```
 
 Transfer files to google drive through rclone:
