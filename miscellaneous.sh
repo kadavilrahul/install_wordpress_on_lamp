@@ -47,17 +47,6 @@ if confirm "Do you want to update the system?"; then
     apt update && apt upgrade -y || error_exit "Failed to update system"
 fi
 
-# Configure PHP
-if confirm "Do you want to configure PHP?"; then
-    echo "Configuring PHP..."
-    PHP_INI_PATH=$(php -i | grep "Loaded Configuration File" | awk '{print $5}')
-    sed -i "s/upload_max_filesize = .*/upload_max_filesize = 64M/" "$PHP_INI_PATH"
-    sed -i "s/post_max_size = .*/post_max_size = 64M/" "$PHP_INI_PATH"
-    sed -i "s/memory_limit = .*/memory_limit = 256M/" "$PHP_INI_PATH"
-    sed -i "s/max_execution_time = .*/max_execution_time = 300/" "$PHP_INI_PATH"
-    sed -i "s/max_input_time = .*/max_input_time = 300/" "$PHP_INI_PATH"
-fi
-
 # Install and configure additional services
 if confirm "Do you want to install and configure UFW firewall?"; then
     echo "Installing and configuring UFW firewall..."

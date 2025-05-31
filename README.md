@@ -123,6 +123,10 @@ redis-cli info memory | grep -E "(used_memory_human|maxmemory_human)"
 bash miscellaneous.sh
 ```
 
+```bash
+bash adjust_php.sh
+```
+
 ### 9. Modify time zone
 
 Check your zone
