@@ -129,7 +129,7 @@ Check your zone
 ```bash
 timedatectl list-timezones
 ```
-Change timezone. Replace Asia/Kolkata wit yours
+Change timezone. Replace Asia/Kolkata with yours
 ```bash
 sudo timedatectl set-timezone Asia/Kolkata
 ```
@@ -166,7 +166,7 @@ crontab -l
 
 ## Optional Installations:
 
-### 1. Disable or enable root login for security
+### 1. Disable or enable root login for server security
 
 - Create a new user with root privileges first 
   You’ll be prompted to set a password and (optionally) fill in user details.
