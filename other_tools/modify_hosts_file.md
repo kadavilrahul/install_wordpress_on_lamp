@@ -3,8 +3,14 @@ Modifying your local hosts file is a useful method for accessing different WordP
 
 1. Locate Your Hosts File
 The location of your hosts file varies depending on your operating system:
-Windows: C:\Windows\System32\drivers\etc\hosts
-macOS and Linux: /etc/hosts
+Windows: 
+```
+C:\Windows\System32\drivers\etc\hosts
+```
+macOS and Linux:
+```
+/etc/hosts
+```
 
 2. Open the Hosts File with Administrative Privileges
 You need administrative privileges to modify the hosts file.
