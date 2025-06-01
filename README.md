@@ -249,10 +249,16 @@ Read file to modify hosts file so that installations can be accessed on any serv
 other_tools/modify_hosts_file.md
 ```
 
-### 5. Exclude static files folder
+### 5. Configure Apache to serve both WordPress and static HTML pages without conflicts 
 Read file to modify your Apache configuration to serve static HTML pages stored in /var/www/your_website.com/products while keeping WordPress functional
 ```
 other_tools/exclude_static_folders.md
+```
+
+### 6. Serve index.html pages first and then index.php pages 
+Read file to modify your Apache configuration to serve static HTML pages stored in /var/www/your_website.com/products while keeping WordPress functional
+```
+other_tools/serve_index_html.md
 ```
 
 ## License
