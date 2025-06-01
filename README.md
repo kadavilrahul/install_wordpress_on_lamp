@@ -67,7 +67,10 @@ bash install_on_subdirectory.sh
 
 ### 5. Optionally Install Rclone to transfer backups to cloud like google drive and vice versa
 
-Read file INSTALL_RCLONE.md for installation
+Read below file for rclone installation
+```
+INSTALL_RCLONE.md
+```
 
 ### 6. Backup and restore Wordpress installation
 
@@ -238,6 +241,18 @@ bash backup_postgres.sh
 ```
 ```bash
 bash restore_postgres.sh
+```
+
+### 4. Modify hosts file on local computer
+Read file to modify hosts file so that installations can be accessed on any server.
+```
+other_tools/modify_hosts_file.md
+```
+
+### 5. Exclude static files folder
+Read file to modify your Apache configuration to serve static HTML pages stored in /var/www/your_website.com/products while keeping WordPress functional
+```
+other_tools/exclude_static_folders.md
 ```
 
 ## License
