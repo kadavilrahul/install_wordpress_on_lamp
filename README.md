@@ -38,9 +38,7 @@ cd install_wordpress_on_lamp
 
 ### 3. Run the Script
 
-Execute the script with:
-
-For installing wordpress on main domain like your_website.com
+#### For installing wordpress on main domain like your_website.com
 
 ```bash
 bash install_on_maindomain.sh
@@ -56,6 +54,21 @@ For installing wordpress onsubdirectory like your_website.com/wordpress
 ```bash
 bash install_on_subdirectory.sh
 ```
+
+#### For installing only apache and SSL
+
+```bash
+cd install_apache_and_ssl_only
+```
+
+```bash
+bash maindomain.sh
+```
+
+```bash
+bash subdomain.sh
+```
+
 
 ### 4. Complete wordpress installtion on browser
 
