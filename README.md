@@ -36,14 +36,14 @@ git clone https://github.com/kadavilrahul/install_wordpress_on_lamp.git
 cd install_wordpress_on_lamp
 ```
 
-### 3. Run the Script
+### 3. Run these scripts to install Wordpress on LAMP
 
-#### For installing wordpress on main domain like your_website.com
+For installing wordpress on main domain like your_website.com
 
 ```bash
 bash install_on_maindomain.sh
 ```
-For installing wordpress onmain domain like your_website.com
+For installing wordpress on subdomain like test.your_website.com
 
 ```bash
 bash install_on_subdomain.sh
@@ -55,7 +55,7 @@ For installing wordpress onsubdirectory like your_website.com/wordpress
 bash install_on_subdirectory.sh
 ```
 
-#### For installing only apache and SSL
+### For installing only apache and SSL
 
 ```bash
 cd install_apache_and_ssl_only
@@ -68,7 +68,6 @@ bash maindomain.sh
 ```bash
 bash subdomain.sh
 ```
-
 
 ### 4. Complete wordpress installtion on browser
 
