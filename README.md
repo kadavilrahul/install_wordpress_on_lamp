@@ -62,11 +62,7 @@ cd install_apache_and_ssl_only
 ```
 
 ```bash
-bash maindomain.sh
-```
-
-```bash
-bash subdomain.sh
+bash setup.sh
 ```
 
 ### 4. Complete wordpress installtion on browser
