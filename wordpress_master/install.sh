@@ -446,20 +446,8 @@ install_ssl_certificate() {
         fi
     fi
     
-    # Determine if this is a subdomain or main domain
-    local cert_domains=""
-    if [[ "$domain" == *.*.* ]]; then
-        # This is a subdomain (e.g., blog.example.com, new.silkroademart.com)
-        info_msg "Detected subdomain. Getting certificate for $domain only."
-        cert_domains="-d $domain"
-    else
-        # This is a main domain (e.g., example.com)
-        info_msg "Detected main domain. Getting certificate for $domain and www.$domain."
-        cert_domains="-d $domain -d www.$domain"
-    fi
-    
     # Install SSL certificate
-    certbot --apache $cert_domains --non-interactive --agree-tos --email "$ADMIN_EMAIL" || {
+    certbot --apache -d "$domain" -d "www.$domain" --non-interactive --agree-tos --email "$ADMIN_EMAIL" || {
         warning_msg "SSL certificate installation failed. You can install it manually later."
         return
     }
@@ -740,143 +728,318 @@ EOF
 install_apache_ssl_only() {
     show_header
     echo -e "${YELLOW}Apache + SSL Only Installation${NC}"
-    echo
+    echo "========================================="
+    echo "    Domain Management Script"
+    echo "========================================="
+    echo ""
     echo "1) Setup new domain"
     echo "2) Remove existing domain"
-    echo "3) Back to Main Menu"
-    echo
+    echo ""
     
-    read -p "$(echo -e "${CYAN}Choose option (1-3): ${NC}")" action
+    read -p "Choose option (1 or 2): " ACTION
     
-    case $action in
+    case $ACTION in
         1) setup_new_domain ;;
         2) remove_existing_domain ;;
-        3) return ;;
         *) 
-            echo -e "${RED}Invalid option${NC}"
-            sleep 2
-            install_apache_ssl_only
+            echo "Invalid choice. Exiting."
+            read -p "Press Enter to continue..."
+            return
             ;;
     esac
 }
 
 setup_new_domain() {
+    # Get domain name for setup
     read -p "Enter your domain name: " DOMAIN
     if [ -z "$DOMAIN" ]; then
-        error_exit "Domain name required!"
+        echo "Error: Domain name required!"
+        read -p "Press Enter to continue..."
+        return
     fi
     
-    read -p "Enter admin email: " ADMIN_EMAIL
-    if [ -z "$ADMIN_EMAIL" ]; then
-        error_exit "Admin email required!"
-    fi
+    echo ""
+    echo "Setting up $DOMAIN..."
     
-    info_msg "Setting up Apache and SSL for domain: $DOMAIN"
+    # Update and install packages
+    apt update -qq
+    apt install -y apache2 certbot python3-certbot-apache dig
     
-    # Install Apache if not installed
-    if ! command -v apache2 &> /dev/null; then
-        info_msg "Installing Apache..."
-        apt update -y
-        apt install apache2 -y
-        systemctl enable apache2
-        systemctl start apache2
-    fi
+    # Enable Apache modules
+    a2enmod rewrite ssl
     
-    # Install Certbot if not installed
-    if ! command -v certbot &> /dev/null; then
-        info_msg "Installing Certbot..."
-        apt install certbot python3-certbot-apache -y
-    fi
+    # Create web directory
+    WEB_ROOT="/var/www/$DOMAIN"
+    mkdir -p "$WEB_ROOT"
+    chown -R www-data:www-data "$WEB_ROOT"
+    chmod -R 755 "$WEB_ROOT"
     
-    # Create site directory
-    SITE_DIR="/var/www/$DOMAIN"
-    mkdir -p "$SITE_DIR"
-    
-    # Create sample index page
-    cat > "$SITE_DIR/index.html" << EOF
+    # Create sample page
+    cat > "$WEB_ROOT/index.html" << EOT
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Welcome to $DOMAIN</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-        .container { max-width: 600px; margin: 0 auto; }
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f4f4f4; }
+        .container { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }
+        h1 { color: #333; text-align: center; }
+        .status { background: #e8f5e8; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center; }
+        .info { background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 20px 0; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Welcome to $DOMAIN</h1>
-        <p>Your domain is successfully configured with Apache and SSL!</p>
-        <p>You can now upload your website files to: <code>$SITE_DIR</code></p>
+        <h1>🎉 Welcome to $DOMAIN</h1>
+        <div class="status">
+            <strong>✅ Your website is live and secure!</strong>
+        </div>
+        <div class="info">
+            <p><strong>Domain:</strong> $DOMAIN</p>
+            <p><strong>Status:</strong> Active with SSL certificate</p>
+            <p><strong>Server:</strong> Apache on Ubuntu</p>
+        </div>
+        <p>Your website is now ready for content. You can upload your files to replace this page.</p>
+        <hr>
+        <small>Generated by Domain Setup Script</small>
     </div>
 </body>
 </html>
-EOF
+EOT
     
-    # Set permissions
-    chown -R www-data:www-data "$SITE_DIR"
-    chmod -R 755 "$SITE_DIR"
+    # Create Apache config
+    cat > "/etc/apache2/sites-available/$DOMAIN.conf" << EOT
+<VirtualHost *:80>
+    ServerName $DOMAIN
+    ServerAlias www.$DOMAIN
+    DocumentRoot $WEB_ROOT
+    DirectoryIndex index.html index.php
+    <Directory $WEB_ROOT>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    ErrorLog \${APACHE_LOG_DIR}/$DOMAIN-error.log
+    CustomLog \${APACHE_LOG_DIR}/$DOMAIN-access.log combined
+</VirtualHost>
+EOT
     
-    # Create Apache virtual host
-    create_apache_vhost "$DOMAIN" "$SITE_DIR"
+    # Enable site
+    a2ensite "$DOMAIN.conf"
+    systemctl reload apache2
     
-    # Install SSL certificate
-    install_ssl_certificate "$DOMAIN"
+    echo "✅ Domain created: http://$DOMAIN"
     
-    success_msg "Apache and SSL setup completed for $DOMAIN"
-    echo -e "${GREEN}You can now access your site at: https://$DOMAIN${NC}"
+    # Check DNS and setup SSL
+    SERVER_IP=$(curl -4 -s ifconfig.me)
+    DOMAIN_IP=$(dig +short A $DOMAIN | head -1)
+    
+    echo ""
+    echo "Checking SSL setup..."
+    echo "Server IP: $SERVER_IP"
+    echo "Domain IP: $DOMAIN_IP"
+    
+    # Advanced SSL setup with conflict detection
+    setup_ssl_with_conflict_detection
+    
+    echo ""
+    echo "========================================="
+    echo "✅ SETUP COMPLETE!"
+    echo "========================================="
+    echo "Your website: $HTTPS_URL"
+    echo "Web files: $WEB_ROOT"
+    echo ""
+    if [[ "$HTTPS_URL" == "http://"* ]]; then
+        echo "Note: SSL failed. Check DNS points to $SERVER_IP"
+    fi
     
     read -p "Press Enter to continue..."
 }
 
-remove_existing_domain() {
-    echo -e "${YELLOW}Available domains:${NC}"
-    echo
+# Advanced SSL setup with conflict detection (from original script)
+setup_ssl_with_conflict_detection() {
+    # Check for potentially conflicting sites
+    echo ""
+    echo "Checking for conflicting sites..."
     
-    local i=1
-    local domains=()
+    # Group sites by domain (combine HTTP and SSL versions)
+    DOMAIN_GROUPS=()
+    SITE_FILES=()
     
-    for conf_file in /etc/apache2/sites-available/*.conf; do
-        if [ -f "$conf_file" ] && [ "$(basename "$conf_file")" != "000-default.conf" ] && [ "$(basename "$conf_file")" != "default-ssl.conf" ]; then
-            domain=$(basename "$conf_file" .conf)
-            echo "  $i) $domain"
-            domains+=("$domain")
-            ((i++))
+    for site in /etc/apache2/sites-enabled/*.conf; do
+        if [ -f "$site" ]; then
+            site_name=$(basename "$site")
+            # Skip the domain we're setting up
+            if [ "$site_name" != "$DOMAIN.conf" ] && [ "$site_name" != "$DOMAIN-le-ssl.conf" ]; then
+                # Extract domain name (remove .conf and -le-ssl suffix)
+                domain_name=$(echo "$site_name" | sed 's/-le-ssl\.conf$//' | sed 's/\.conf$//')
+                
+                # Check if this domain is already in our list
+                found=false
+                for existing_domain in "${DOMAIN_GROUPS[@]}"; do
+                    if [ "$existing_domain" = "$domain_name" ]; then
+                        found=true
+                        break
+                    fi
+                done
+                
+                if [ "$found" = false ]; then
+                    DOMAIN_GROUPS+=("$domain_name")
+                fi
+            fi
         fi
     done
     
-    if [ ${#domains[@]} -eq 0 ]; then
+    SITES_TO_DISABLE=()
+    if [ ${#DOMAIN_GROUPS[@]} -gt 0 ]; then
+        echo ""
+        echo "Found existing domains that might interfere with SSL setup:"
+        for i in "${!DOMAIN_GROUPS[@]}"; do
+            echo "$((i+1))) ${DOMAIN_GROUPS[i]}"
+        done
+        echo "$((${#DOMAIN_GROUPS[@]}+1))) Disable ALL domains"
+        echo "$((${#DOMAIN_GROUPS[@]}+2))) Continue without disabling any sites"
+        echo ""
+        read -p "Select domains to temporarily disable (e.g., 1 2) or press Enter to skip: " DISABLE_CHOICE
+        
+        if [ ! -z "$DISABLE_CHOICE" ]; then
+            # Check if user wants to disable all
+            if [ "$DISABLE_CHOICE" = "$((${#DOMAIN_GROUPS[@]}+1))" ]; then
+                echo "Disabling all domains..."
+                for domain in "${DOMAIN_GROUPS[@]}"; do
+                    SITES_TO_DISABLE+=("$domain.conf")
+                    SITES_TO_DISABLE+=("$domain-le-ssl.conf")
+                done
+            else
+                # Process individual selections
+                for num in $DISABLE_CHOICE; do
+                    if [[ "$num" =~ ^[0-9]+$ ]] && [ "$num" -ge 1 ] && [ "$num" -le ${#DOMAIN_GROUPS[@]} ]; then
+                        selected_domain="${DOMAIN_GROUPS[$((num-1))]}"
+                        # Add both HTTP and SSL versions of the domain to disable list
+                        SITES_TO_DISABLE+=("$selected_domain.conf")
+                        SITES_TO_DISABLE+=("$selected_domain-le-ssl.conf")
+                    fi
+                done
+            fi
+        fi
+    fi
+    
+    # Disable selected sites
+    if [ ${#SITES_TO_DISABLE[@]} -gt 0 ]; then
+        echo ""
+        echo "Temporarily disabling selected sites..."
+        for site in "${SITES_TO_DISABLE[@]}"; do
+            echo "Disabling $site"
+            a2dissite "$site" 2>/dev/null || true
+        done
+        systemctl reload apache2
+        sleep 2
+    fi
+    
+    # Try SSL certificate with fallback logic
+    echo ""
+    echo "Requesting SSL certificate..."
+    if certbot --apache -d "$DOMAIN" -d "www.$DOMAIN" --agree-tos --email "admin@$DOMAIN" --non-interactive --quiet; then
+        echo "✅ SSL certificate obtained!"
+        HTTPS_URL="https://$DOMAIN"
+    elif certbot --apache -d "$DOMAIN" --agree-tos --email "admin@$DOMAIN" --non-interactive --quiet; then
+        echo "✅ SSL certificate obtained (main domain only)!"
+        HTTPS_URL="https://$DOMAIN"
+    else
+        echo "⚠️  SSL failed - using HTTP only"
+        HTTPS_URL="http://$DOMAIN"
+    fi
+    
+    # Re-enable previously disabled sites
+    if [ ${#SITES_TO_DISABLE[@]} -gt 0 ]; then
+        echo ""
+        echo "Re-enabling previously disabled sites..."
+        for site in "${SITES_TO_DISABLE[@]}"; do
+            echo "Re-enabling $site"
+            a2ensite "$site" 2>/dev/null || true
+        done
+        systemctl reload apache2
+    fi
+}
+
+remove_existing_domain() {
+    # Show existing domains for removal
+    echo ""
+    echo "Existing domains:"
+    
+    # Find all domains in /var/www (excluding html and default directories)
+    DOMAINS=()
+    if [ -d "/var/www" ]; then
+        for dir in /var/www/*/; do
+            if [ -d "$dir" ]; then
+                domain=$(basename "$dir")
+                if [ "$domain" != "html" ] && [ "$domain" != "*" ]; then
+                    DOMAINS+=("$domain")
+                fi
+            fi
+        done
+    fi
+    
+    if [ ${#DOMAINS[@]} -eq 0 ]; then
         echo "No domains found to remove."
         read -p "Press Enter to continue..."
         return
     fi
     
-    echo
-    read -p "Enter the number of the domain to remove: " choice
+    # Display domains with numbers
+    for i in "${!DOMAINS[@]}"; do
+        echo "$((i+1))) ${DOMAINS[i]}"
+    done
     
-    if [[ "$choice" -ge 1 && "$choice" -le ${#domains[@]} ]]; then
-        local selected_domain="${domains[$((choice-1))]}"
-        
-        echo -e "${RED}WARNING: This will remove all files and configurations for $selected_domain${NC}"
-        if confirm "Are you sure you want to remove $selected_domain?"; then
-            # Disable and remove Apache site
-            a2dissite "$selected_domain.conf" 2>/dev/null
-            rm -f "/etc/apache2/sites-available/$selected_domain.conf"
-            
-            # Remove SSL certificate
-            certbot delete --cert-name "$selected_domain" --non-interactive 2>/dev/null || true
-            
-            # Remove site directory
-            rm -rf "/var/www/$selected_domain"
-            
-            # Reload Apache
-            systemctl reload apache2
-            
-            success_msg "Domain $selected_domain removed successfully"
-        fi
-    else
-        echo -e "${RED}Invalid selection${NC}"
+    echo ""
+    read -p "Select domain number to remove: " DOMAIN_NUM
+    
+    # Validate selection
+    if ! [[ "$DOMAIN_NUM" =~ ^[0-9]+$ ]] || [ "$DOMAIN_NUM" -lt 1 ] || [ "$DOMAIN_NUM" -gt ${#DOMAINS[@]} ]; then
+        echo "Invalid selection. Exiting."
+        read -p "Press Enter to continue..."
+        return
     fi
+    
+    # Get selected domain
+    DOMAIN="${DOMAINS[$((DOMAIN_NUM-1))]}"
+    
+    echo ""
+    echo "⚠️  WARNING: This will completely remove $DOMAIN"
+    echo "- Delete /var/www/$DOMAIN directory"
+    echo "- Remove Apache configuration"
+    echo "- Revoke SSL certificate"
+    echo ""
+    read -p "Are you sure? Type 'DELETE' to confirm: " CONFIRM
+    
+    if [ "$CONFIRM" != "DELETE" ]; then
+        echo "Cancelled."
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo ""
+    echo "Removing $DOMAIN..."
+    
+    # Disable and remove Apache site
+    a2dissite "$DOMAIN.conf" 2>/dev/null || true
+    a2dissite "$DOMAIN-le-ssl.conf" 2>/dev/null || true
+    rm -f "/etc/apache2/sites-available/$DOMAIN.conf"
+    rm -f "/etc/apache2/sites-available/$DOMAIN-le-ssl.conf"
+    
+    # Remove SSL certificate
+    certbot delete --cert-name "$DOMAIN" --non-interactive 2>/dev/null || true
+    
+    # Remove web directory
+    rm -rf "/var/www/$DOMAIN"
+    
+    # Reload Apache
+    systemctl reload apache2
+    
+    echo ""
+    echo "✅ Domain $DOMAIN has been completely removed!"
     
     read -p "Press Enter to continue..."
 }
