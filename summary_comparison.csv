@@ -1,0 +1,30 @@
+Aspect,custom_script,WordOps,wordpress_master
+Primary Focus,Individual LAMP scripts,LEMP stack automation,LAMP stack automation with unified interface
+Web Server,Apache,Nginx,Apache
+Automation Level,Manual (run scripts individually),High (integrated commands),High (menu-driven automation)
+User Interface,Command-line scripts,CLI tool (wo command),Interactive menu system
+Installation Types,Main domain/Subdomain/Subdirectory,Main domain/Subdomain/Subdirectory,Main domain/Subdomain/Subdirectory
+Database Support,MySQL + PostgreSQL,MySQL/MariaDB only,MySQL + PostgreSQL
+Backup & Restore,WordPress + PostgreSQL,WordPress only,WordPress + PostgreSQL
+Error Handling,Basic (per script),Advanced,Advanced (with rollback)
+Configuration Management,None,Built-in,config.sh file
+Documentation,Minimal,Extensive,Comprehensive README
+Testing Suite,None,Limited,Comprehensive (test.sh)
+Learning Curve,Medium (multiple scripts),Low (single command),Low (interactive menu)
+Setup Complexity,Medium (manual execution),Low (automated),Low (automated with menu)
+Customization Level,High (modify scripts),Medium (configuration),High (scripts + config)
+Community Support,Limited,Active community,New (inherits from custom_script)
+Stack Management,Manual sequencing,Automated LEMP,Automated LAMP
+Service Management,Limited,Comprehensive,Limited
+Site Management,Basic,Advanced (enable/disable/delete),Basic
+Monitoring,None,Built-in,None
+Updates,Manual,Automated,Manual
+Maintenance Mode,No,Yes,No
+SSL Management,Integrated in install,Automated with Let's Encrypt,Integrated in install
+Caching (Redis),Yes,Yes,Yes (automated)
+Security Features,SSH + Firewall + Fail2ban,Basic,SSH + Firewall + Fail2ban (via menu)
+Installation Process,Manual placement,Package installation,install.sh script
+Prerequisites Check,No,Yes,Yes (test.sh)
+Task Sequencing,Manual,Automatic,Automatic (predefined)
+Rollback Capability,No,Limited,Yes (on critical failures)
+Best For,Advanced users who want control,Users wanting quick LEMP setup,Users wanting automated LAMP with control

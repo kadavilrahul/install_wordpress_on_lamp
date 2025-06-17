@@ -35,10 +35,6 @@ git clone https://github.com/kadavilrahul/install_wordpress_on_lamp.git
 ```bash
 cd install_wordpress_on_lamp
 ```
-```bash
-cd custom_script
-```
-
 
 ### 3. Run these scripts to install Wordpress on LAMP
 
