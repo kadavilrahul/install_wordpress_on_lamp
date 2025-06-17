@@ -1,0 +1,53 @@
+Feature Category,Feature,custom_script,WordOps,wordpress_master,Notes
+WordPress Management,Install WordPress,Yes (install_on_maindomain.sh/subdirectory.sh/subdomain.sh),Yes (wo site create),Yes (automated sequence via menu),wordpress_master automates the custom_script workflow
+WordPress Management,WordPress Backup,Yes (backup_wordpress.sh),Yes (wo site backup),Yes (menu option 2),wordpress_master provides unified interface
+WordPress Management,WordPress Restore,Yes (restore_wordpress.sh),Limited (manual process),Yes (menu option 3),wordpress_master maintains custom_script capability
+WordPress Management,Site Management,No,Yes (wo site enable/disable/delete/list/info/edit),No,WordOps has comprehensive site management
+Database Management,MySQL/MariaDB Setup,Yes,Yes,Yes (integrated in stack install),All three support MySQL/MariaDB
+Database Management,phpMyAdmin Setup,Yes (php_myadmin.sh),Yes,Yes (automated in stack install),wordpress_master automates phpMyAdmin setup
+Database Management,PostgreSQL Backup,Yes (backup_postgres.sh),No,Yes (menu option 4),wordpress_master maintains PostgreSQL support
+Database Management,PostgreSQL Restore,Yes (restore_postgres.sh),No,Yes (menu option 5),wordpress_master maintains PostgreSQL support
+Web Server,Apache Setup,Yes (install_apache_and_ssl_only/setup.sh),No,Yes (automated in stack install),wordpress_master automates Apache setup
+Web Server,Nginx Setup,No,Yes,No,WordOps focuses on Nginx
+Web Server,SSL Configuration,Yes (integrated in install scripts),Yes (wo site create with SSL),Yes (automated in stack install),All support SSL but different approaches
+Caching & Performance,Redis Setup,Yes (redis.sh + integrated),Yes (wo site create with Redis),Yes (automated in stack install),wordpress_master automates Redis setup
+Installation Types,Main Domain Installation,Yes (install_on_maindomain.sh),Yes (wo site create),Yes (menu choice in option 1),All support main domain setup
+Installation Types,Subdomain Installation,Yes (install_on_subdomain.sh),Yes (wo site create),Yes (menu choice in option 1),All support subdomain setup
+Installation Types,Subdirectory Installation,Yes (install_on_subdirectory.sh),Yes (wo site create),Yes (menu choice in option 1),All support subdirectory setup
+Security,SSH Security,Yes (ssh_control.sh),Limited,Yes (menu option 7),wordpress_master provides SSH management
+Security,UFW Firewall,Yes (miscellaneous.sh),No,Yes (via miscellaneous tools),wordpress_master accesses via menu
+Security,Fail2ban,Yes (miscellaneous.sh),No,Yes (via miscellaneous tools),wordpress_master accesses via menu
+System Management,PHP Configuration,Yes (adjust_php.sh),Yes (integrated),Yes (menu option 6),wordpress_master provides dedicated PHP management
+System Management,Swap Setup,Yes (miscellaneous.sh),No,Yes (via miscellaneous tools),wordpress_master accesses via menu
+System Management,System Utilities,Yes (miscellaneous.sh),Limited,Yes (menu option 8),wordpress_master provides unified access
+Backup & Migration,Transfer Backups,Yes (transfer_backup_from_old_server.sh),No,No (not integrated yet),Could be added to wordpress_master
+Backup & Migration,Backup Management,Yes (dedicated scripts),Yes (wo site backup),Yes (menu options 2 & 4),wordpress_master provides unified backup interface
+Stack Management,LAMP Stack,Yes (complete LAMP setup),No (LEMP focus),Yes (automated LAMP installation),wordpress_master automates full LAMP stack
+Stack Management,LEMP Stack,No,Yes (core feature),No,WordOps specializes in LEMP
+Stack Management,Stack Services,Limited,Yes (wo stack services start/stop/restart/status),Limited,WordOps has comprehensive service management
+Stack Management,Stack Installation,Manual (individual scripts),Yes (wo stack install),Yes (automated sequence),wordpress_master automates the manual process
+Automation,Automation Level,Manual execution of scripts,High (integrated commands),High (menu-driven automation),wordpress_master bridges the automation gap
+Automation,Command Interface,Script-based,CLI-based (wo command),Menu-based CLI,wordpress_master provides interactive interface
+Automation,Error Handling,Basic (per script),Advanced,Advanced (built-in checks),wordpress_master adds comprehensive error handling
+Automation,Task Sequencing,Manual,Automatic,Automatic (predefined sequences),wordpress_master automates task sequencing
+Documentation,Documentation,Minimal (README files),Extensive,Good (comprehensive README),wordpress_master has detailed documentation
+Documentation,Community Support,Limited,Active community,New (based on custom_script),wordpress_master inherits custom_script capabilities
+Troubleshooting,Troubleshooting Tools,Yes (troubleshooting/ directory),Yes (wo debug),Yes (accessible via menu),wordpress_master provides access to troubleshooting
+Troubleshooting,Log Management,Limited,Yes (wo log),Limited,WordOps has better log management
+Troubleshooting,Testing Suite,No,Limited,Yes (test.sh),wordpress_master includes comprehensive testing
+Maintenance,Site Maintenance,Manual,Yes (wo maintenance),Manual,WordOps has maintenance mode
+Maintenance,Updates,Manual,Yes (wo update),Manual,WordOps handles updates automatically
+Monitoring,Site Monitoring,No,Yes (wo info),No,WordOps provides monitoring capabilities
+Monitoring,System Info,Limited,Yes (wo info),Limited,WordOps has comprehensive system info
+Flexibility,Modular Design,Yes (separate scripts),Yes (plugin system),Yes (menu-driven modules),All are modular with different approaches
+Flexibility,Customization,High (script modification),Medium (configuration-based),High (script + config modification),wordpress_master maintains high customization
+Flexibility,Configuration Management,No,Yes,Yes (config.sh),wordpress_master adds configuration management
+Ease of Use,Learning Curve,Medium (multiple scripts),Low (single command),Low (interactive menu),wordpress_master simplifies custom_script usage
+Ease of Use,Setup Complexity,Medium (manual script execution),Low (automated setup),Low (automated with menu),wordpress_master simplifies setup process
+Ease of Use,User Interface,Command-line scripts,Command-line tool,Interactive menu system,wordpress_master provides most user-friendly interface
+Installation & Setup,Installation Process,Manual script placement,Package-based installation,Simple (install.sh),wordpress_master has streamlined installation
+Installation & Setup,Prerequisites Check,No,Yes,Yes (test.sh),wordpress_master includes prerequisite checking
+Installation & Setup,Quick Start,No,Yes,Yes (interactive menu),wordpress_master provides quick start capability
+Reliability,Error Recovery,Limited,Good,Good (with rollback),wordpress_master adds error recovery
+Reliability,Validation,Limited,Good,Good (syntax checking),wordpress_master includes validation
+Reliability,Testing,No,Limited,Yes (comprehensive test suite),wordpress_master has the most comprehensive testing
