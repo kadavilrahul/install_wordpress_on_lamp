@@ -132,12 +132,15 @@ show_main_menu() {
     echo "   11) SSH Security Management"
     echo "   12) System Utilities (UFW, Fail2ban, Swap)"
     echo
-    echo -e "  ${GREEN}TROUBLESHOOTING & TOOLS${NC}"
-    echo "   13) Troubleshooting Guide"
-    echo "   14) MySQL Database Commands"
-    echo "   15) System Status Check"
+    echo -e "  ${GREEN}WEBSITE REMOVAL${NC}"
+    echo "   13) Remove Websites & Databases"
     echo
-    echo "   16) Exit"
+    echo -e "  ${GREEN}TROUBLESHOOTING & TOOLS${NC}"
+    echo "   14) Troubleshooting Guide"
+    echo "   15) MySQL Database Commands"
+    echo "   16) System Status Check"
+    echo
+    echo "   17) Exit"
     echo
     echo -e "${CYAN}=============================================================================${NC}"
 }
@@ -728,25 +731,16 @@ EOF
 install_apache_ssl_only() {
     show_header
     echo -e "${YELLOW}Apache + SSL Only Installation${NC}"
-    echo "========================================="
-    echo "    Domain Management Script"
-    echo "========================================="
-    echo ""
-    echo "1) Setup new domain"
-    echo "2) Remove existing domain"
-    echo ""
+    echo "This will install Apache web server with SSL support for a new domain."
+    echo
     
-    read -p "Choose option (1 or 2): " ACTION
+    # Get domain name for setup
+    read -p "Enter your domain name: " DOMAIN
+    if [ -z "$DOMAIN" ]; then
+        error_exit "Domain name required!"
+    fi
     
-    case $ACTION in
-        1) setup_new_domain ;;
-        2) remove_existing_domain ;;
-        *) 
-            echo "Invalid choice. Exiting."
-            read -p "Press Enter to continue..."
-            return
-            ;;
-    esac
+    setup_new_domain
 }
 
 setup_new_domain() {
@@ -964,84 +958,283 @@ setup_ssl_with_conflict_detection() {
     fi
 }
 
-remove_existing_domain() {
-    # Show existing domains for removal
-    echo ""
-    echo "Existing domains:"
-    
-    # Find all domains in /var/www (excluding html and default directories)
-    DOMAINS=()
+#=============================================================================
+# WEBSITE AND DATABASE REMOVAL FUNCTIONS
+#=============================================================================
+
+# Function to detect WordPress installations
+detect_wordpress_sites() {
+    local sites=()
     if [ -d "/var/www" ]; then
         for dir in /var/www/*/; do
             if [ -d "$dir" ]; then
                 domain=$(basename "$dir")
                 if [ "$domain" != "html" ] && [ "$domain" != "*" ]; then
-                    DOMAINS+=("$domain")
+                    # Check if it's a WordPress site
+                    if [ -f "$dir/wp-config.php" ] || [ -f "$dir/public_html/wp-config.php" ] || [ -f "$dir/html/wp-config.php" ]; then
+                        sites+=("$domain:WordPress")
+                    else
+                        sites+=("$domain:Plain Apache")
+                    fi
                 fi
             fi
         done
     fi
+    echo "${sites[@]}"
+}
+
+# Function to get WordPress database details
+get_wordpress_database() {
+    local site_path="$1"
+    local wp_config=""
     
-    if [ ${#DOMAINS[@]} -eq 0 ]; then
-        echo "No domains found to remove."
+    # Find wp-config.php in various possible locations
+    if [ -f "$site_path/wp-config.php" ]; then
+        wp_config="$site_path/wp-config.php"
+    elif [ -f "$site_path/public_html/wp-config.php" ]; then
+        wp_config="$site_path/public_html/wp-config.php"
+    elif [ -f "$site_path/html/wp-config.php" ]; then
+        wp_config="$site_path/html/wp-config.php"
+    fi
+    
+    if [ -n "$wp_config" ] && [ -f "$wp_config" ]; then
+        local db_name=$(grep "DB_NAME" "$wp_config" | cut -d "'" -f 4)
+        local db_user=$(grep "DB_USER" "$wp_config" | cut -d "'" -f 4)
+        echo "$db_name:$db_user"
+    fi
+}
+
+# Function to list all MySQL databases (excluding system databases)
+list_mysql_databases() {
+    mysql -e "SHOW DATABASES;" 2>/dev/null | grep -v -E "^(Database|information_schema|performance_schema|mysql|sys)$" || echo ""
+}
+
+# Main removal function
+remove_websites_and_databases() {
+    show_header
+    echo -e "${RED}⚠️  WEBSITE AND DATABASE REMOVAL TOOL ⚠️${NC}"
+    echo -e "${YELLOW}This tool will completely remove websites and their associated databases${NC}"
+    echo
+    
+    # Detect all sites
+    local sites_array=($(detect_wordpress_sites))
+    
+    if [ ${#sites_array[@]} -eq 0 ]; then
+        warning_msg "No websites found in /var/www directory"
         read -p "Press Enter to continue..."
         return
     fi
     
-    # Display domains with numbers
-    for i in "${!DOMAINS[@]}"; do
-        echo "$((i+1))) ${DOMAINS[i]}"
+    echo -e "${CYAN}Available websites for removal:${NC}"
+    echo
+    
+    # Display sites with their types
+    for i in "${!sites_array[@]}"; do
+        local site_info="${sites_array[i]}"
+        local domain=$(echo "$site_info" | cut -d':' -f1)
+        local type=$(echo "$site_info" | cut -d':' -f2)
+        
+        if [ "$type" = "WordPress" ]; then
+            echo -e "  $((i+1))) ${GREEN}$domain${NC} (${BLUE}WordPress Site${NC})"
+        else
+            echo -e "  $((i+1))) ${GREEN}$domain${NC} (${YELLOW}Plain Apache Site${NC})"
+        fi
     done
     
-    echo ""
-    read -p "Select domain number to remove: " DOMAIN_NUM
+    echo
+    echo -e "  $((${#sites_array[@]}+1))) ${RED}Remove ALL websites and databases${NC}"
+    echo -e "  $((${#sites_array[@]}+2))) ${CYAN}Back to main menu${NC}"
+    echo
     
-    # Validate selection
-    if ! [[ "$DOMAIN_NUM" =~ ^[0-9]+$ ]] || [ "$DOMAIN_NUM" -lt 1 ] || [ "$DOMAIN_NUM" -gt ${#DOMAINS[@]} ]; then
-        echo "Invalid selection. Exiting."
+    read -p "$(echo -e "${CYAN}Select option: ${NC}")" choice
+    
+    # Handle back to menu option
+    if [ "$choice" = "$((${#sites_array[@]}+2))" ]; then
+        return
+    fi
+    
+    # Handle remove all option
+    if [ "$choice" = "$((${#sites_array[@]}+1))" ]; then
+        remove_all_websites_and_databases "${sites_array[@]}"
+        return
+    fi
+    
+    # Validate single site selection
+    if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt ${#sites_array[@]} ]; then
+        error_msg "Invalid selection"
         read -p "Press Enter to continue..."
         return
     fi
     
-    # Get selected domain
-    DOMAIN="${DOMAINS[$((DOMAIN_NUM-1))]}"
+    # Remove single site
+    local selected_site="${sites_array[$((choice-1))]}"
+    local domain=$(echo "$selected_site" | cut -d':' -f1)
+    local type=$(echo "$selected_site" | cut -d':' -f2)
     
-    echo ""
-    echo "⚠️  WARNING: This will completely remove $DOMAIN"
-    echo "- Delete /var/www/$DOMAIN directory"
-    echo "- Remove Apache configuration"
-    echo "- Revoke SSL certificate"
-    echo ""
-    read -p "Are you sure? Type 'DELETE' to confirm: " CONFIRM
+    remove_single_website "$domain" "$type"
+}
+
+# Function to remove a single website
+remove_single_website() {
+    local domain="$1"
+    local type="$2"
+    local site_path="/var/www/$domain"
     
-    if [ "$CONFIRM" != "DELETE" ]; then
-        echo "Cancelled."
+    echo
+    echo -e "${RED}⚠️  WARNING: Complete removal of $domain${NC}"
+    echo -e "${YELLOW}This will permanently delete:${NC}"
+    echo "  • Website files in $site_path"
+    echo "  • Apache virtual host configuration"
+    echo "  • SSL certificates"
+    
+    if [ "$type" = "WordPress" ]; then
+        local db_info=$(get_wordpress_database "$site_path")
+        if [ -n "$db_info" ]; then
+            local db_name=$(echo "$db_info" | cut -d':' -f1)
+            local db_user=$(echo "$db_info" | cut -d':' -f2)
+            echo "  • MySQL database: $db_name"
+            echo "  • MySQL user: $db_user"
+        fi
+    fi
+    
+    echo
+    echo -e "${RED}THIS ACTION CANNOT BE UNDONE!${NC}"
+    echo
+    read -p "$(echo -e "${CYAN}Type 'DELETE' to confirm removal: ${NC}")" confirm
+    
+    if [ "$confirm" != "DELETE" ]; then
+        warning_msg "Removal cancelled"
         read -p "Press Enter to continue..."
         return
     fi
     
-    echo ""
-    echo "Removing $DOMAIN..."
+    info_msg "Starting removal of $domain..."
     
-    # Disable and remove Apache site
-    a2dissite "$DOMAIN.conf" 2>/dev/null || true
-    a2dissite "$DOMAIN-le-ssl.conf" 2>/dev/null || true
-    rm -f "/etc/apache2/sites-available/$DOMAIN.conf"
-    rm -f "/etc/apache2/sites-available/$DOMAIN-le-ssl.conf"
+    # Remove Apache configuration
+    info_msg "Removing Apache configuration..."
+    a2dissite "$domain.conf" 2>/dev/null || true
+    a2dissite "$domain-le-ssl.conf" 2>/dev/null || true
+    rm -f "/etc/apache2/sites-available/$domain.conf"
+    rm -f "/etc/apache2/sites-available/$domain-le-ssl.conf"
     
-    # Remove SSL certificate
-    certbot delete --cert-name "$DOMAIN" --non-interactive 2>/dev/null || true
+    # Remove SSL certificates
+    info_msg "Removing SSL certificates..."
+    certbot delete --cert-name "$domain" --non-interactive 2>/dev/null || true
     
-    # Remove web directory
-    rm -rf "/var/www/$DOMAIN"
+    # Remove database if WordPress
+    if [ "$type" = "WordPress" ]; then
+        local db_info=$(get_wordpress_database "$site_path")
+        if [ -n "$db_info" ]; then
+            local db_name=$(echo "$db_info" | cut -d':' -f1)
+            local db_user=$(echo "$db_info" | cut -d':' -f2)
+            
+            info_msg "Removing MySQL database and user..."
+            mysql -e "DROP DATABASE IF EXISTS \`$db_name\`;" 2>/dev/null || true
+            mysql -e "DROP USER IF EXISTS '$db_user'@'localhost';" 2>/dev/null || true
+            mysql -e "FLUSH PRIVILEGES;" 2>/dev/null || true
+        fi
+    fi
+    
+    # Remove website files
+    info_msg "Removing website files..."
+    rm -rf "$site_path"
+    
+    # Reload Apache
+    info_msg "Reloading Apache..."
+    systemctl reload apache2
+    
+    success_msg "Website $domain has been completely removed!"
+    read -p "Press Enter to continue..."
+}
+
+# Function to remove all websites and databases
+remove_all_websites_and_databases() {
+    local sites_array=("$@")
+    
+    echo
+    echo -e "${RED}⚠️  EXTREME WARNING: COMPLETE SYSTEM CLEANUP ⚠️${NC}"
+    echo -e "${YELLOW}This will remove ALL websites and databases:${NC}"
+    echo
+    
+    for site_info in "${sites_array[@]}"; do
+        local domain=$(echo "$site_info" | cut -d':' -f1)
+        local type=$(echo "$site_info" | cut -d':' -f2)
+        echo "  • $domain ($type)"
+    done
+    
+    echo
+    echo -e "${RED}ALL WEBSITE DATA AND DATABASES WILL BE PERMANENTLY LOST!${NC}"
+    echo -e "${RED}THIS ACTION CANNOT BE UNDONE!${NC}"
+    echo
+    read -p "$(echo -e "${CYAN}Type 'DELETE ALL' to confirm complete removal: ${NC}")" confirm
+    
+    if [ "$confirm" != "DELETE ALL" ]; then
+        warning_msg "Mass removal cancelled"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    info_msg "Starting complete website and database removal..."
+    
+    # Remove each site
+    for site_info in "${sites_array[@]}"; do
+        local domain=$(echo "$site_info" | cut -d':' -f1)
+        local type=$(echo "$site_info" | cut -d':' -f2)
+        
+        info_msg "Removing $domain..."
+        
+        # Remove Apache configuration
+        a2dissite "$domain.conf" 2>/dev/null || true
+        a2dissite "$domain-le-ssl.conf" 2>/dev/null || true
+        rm -f "/etc/apache2/sites-available/$domain.conf"
+        rm -f "/etc/apache2/sites-available/$domain-le-ssl.conf"
+        
+        # Remove SSL certificates
+        certbot delete --cert-name "$domain" --non-interactive 2>/dev/null || true
+        
+        # Remove database if WordPress
+        if [ "$type" = "WordPress" ]; then
+            local site_path="/var/www/$domain"
+            local db_info=$(get_wordpress_database "$site_path")
+            if [ -n "$db_info" ]; then
+                local db_name=$(echo "$db_info" | cut -d':' -f1)
+                local db_user=$(echo "$db_info" | cut -d':' -f2)
+                
+                mysql -e "DROP DATABASE IF EXISTS \`$db_name\`;" 2>/dev/null || true
+                mysql -e "DROP USER IF EXISTS '$db_user'@'localhost';" 2>/dev/null || true
+            fi
+        fi
+        
+        # Remove website files
+        rm -rf "/var/www/$domain"
+    done
+    
+    # Clean up any remaining WordPress databases
+    info_msg "Cleaning up any remaining WordPress databases..."
+    local all_dbs=$(list_mysql_databases)
+    for db in $all_dbs; do
+        # Check if database might be WordPress (common patterns)
+        if [[ "$db" =~ ^(wp_|wordpress_|.*_wp).*$ ]]; then
+            if confirm "Remove database '$db' (appears to be WordPress)?"; then
+                mysql -e "DROP DATABASE IF EXISTS \`$db\`;" 2>/dev/null || true
+            fi
+        fi
+    done
+    
+    # Flush MySQL privileges
+    mysql -e "FLUSH PRIVILEGES;" 2>/dev/null || true
     
     # Reload Apache
     systemctl reload apache2
     
-    echo ""
-    echo "✅ Domain $DOMAIN has been completely removed!"
-    
+    success_msg "All websites and databases have been completely removed!"
+    warning_msg "Your server is now clean of all website data"
     read -p "Press Enter to continue..."
+}
+
+remove_existing_domain() {
+    # Legacy function - redirect to new comprehensive removal tool
+    remove_websites_and_databases
 }
 
 #=============================================================================
@@ -1866,7 +2059,7 @@ main() {
     
     while true; do
         show_main_menu
-        read -p "$(echo -e "${CYAN}Please select an option (1-16): ${NC}")" choice
+        read -p "$(echo -e "${CYAN}Please select an option (1-17): ${NC}")" choice
         
         case $choice in
             1) install_lamp_wordpress ;;
@@ -1881,10 +2074,11 @@ main() {
             10) configure_redis ;;
             11) ssh_security_management ;;
             12) system_utilities ;;
-            13) show_troubleshooting_guide ;;
-            14) mysql_commands_guide ;;
-            15) system_status_check ;;
-            16) 
+            13) remove_websites_and_databases ;;
+            14) show_troubleshooting_guide ;;
+            15) mysql_commands_guide ;;
+            16) system_status_check ;;
+            17) 
                 echo -e "${GREEN}Thank you for using WordPress Master!${NC}"
                 exit 0
                 ;;
@@ -1900,6 +2094,3 @@ main() {
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi
-        warning_msg "Domain $domain does not resolve. SSL installation may fail."
-        if ! confirm "Continue with SSL installation anyway?"; then
-            return
