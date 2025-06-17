@@ -1112,14 +1112,53 @@ remove_single_website() {
     
     # Remove Apache configuration
     info_msg "Removing Apache configuration..."
-    a2dissite "$domain.conf" 2>/dev/null || true
-    a2dissite "$domain-le-ssl.conf" 2>/dev/null || true
+    
+    # Disable sites first
+    if [ -f "/etc/apache2/sites-enabled/$domain.conf" ]; then
+        a2dissite "$domain.conf" 2>/dev/null || true
+    fi
+    if [ -f "/etc/apache2/sites-enabled/$domain-le-ssl.conf" ]; then
+        a2dissite "$domain-le-ssl.conf" 2>/dev/null || true
+    fi
+    
+    # Remove configuration files
     rm -f "/etc/apache2/sites-available/$domain.conf"
     rm -f "/etc/apache2/sites-available/$domain-le-ssl.conf"
     
-    # Remove SSL certificates
+    # Test Apache configuration before reloading
+    if ! apache2ctl configtest 2>/dev/null; then
+        warning_msg "Apache configuration test failed, attempting to fix..."
+        # Remove any broken symlinks
+        find /etc/apache2/sites-enabled/ -type l ! -exec test -e {} \; -delete 2>/dev/null || true
+    fi
+    
+    # Remove SSL certificates and all related files
     info_msg "Removing SSL certificates..."
+    
+    # Remove via certbot (removes most files)
     certbot delete --cert-name "$domain" --non-interactive 2>/dev/null || true
+    
+    # Manual cleanup of any remaining SSL files
+    if [ -d "/etc/letsencrypt/live/$domain" ]; then
+        rm -rf "/etc/letsencrypt/live/$domain" 2>/dev/null || true
+    fi
+    if [ -d "/etc/letsencrypt/archive/$domain" ]; then
+        rm -rf "/etc/letsencrypt/archive/$domain" 2>/dev/null || true
+    fi
+    if [ -f "/etc/letsencrypt/renewal/$domain.conf" ]; then
+        rm -f "/etc/letsencrypt/renewal/$domain.conf" 2>/dev/null || true
+    fi
+    
+    # Also check for www variant
+    if [ -d "/etc/letsencrypt/live/www.$domain" ]; then
+        rm -rf "/etc/letsencrypt/live/www.$domain" 2>/dev/null || true
+    fi
+    if [ -d "/etc/letsencrypt/archive/www.$domain" ]; then
+        rm -rf "/etc/letsencrypt/archive/www.$domain" 2>/dev/null || true
+    fi
+    if [ -f "/etc/letsencrypt/renewal/www.$domain.conf" ]; then
+        rm -f "/etc/letsencrypt/renewal/www.$domain.conf" 2>/dev/null || true
+    fi
     
     # Remove database if WordPress
     if [ "$type" = "WordPress" ]; then
@@ -1139,9 +1178,30 @@ remove_single_website() {
     info_msg "Removing website files..."
     rm -rf "$site_path"
     
-    # Reload Apache
+    # Reload Apache with error handling
     info_msg "Reloading Apache..."
-    systemctl reload apache2
+    if apache2ctl configtest 2>/dev/null; then
+        if systemctl reload apache2; then
+            success_msg "Apache reloaded successfully"
+        else
+            warning_msg "Apache reload failed, attempting restart..."
+            if systemctl restart apache2; then
+                success_msg "Apache restarted successfully"
+            else
+                error_exit "Apache restart failed. Please check configuration manually."
+            fi
+        fi
+    else
+        warning_msg "Apache configuration test failed. Fixing configuration..."
+        # Remove any remaining broken configurations
+        find /etc/apache2/sites-enabled/ -type l ! -exec test -e {} \; -delete 2>/dev/null || true
+        
+        if apache2ctl configtest 2>/dev/null; then
+            systemctl reload apache2 && success_msg "Apache configuration fixed and reloaded"
+        else
+            error_exit "Apache configuration still has errors. Please check manually with 'apache2ctl configtest'"
+        fi
+    fi
     
     success_msg "Website $domain has been completely removed!"
     read -p "Press Enter to continue..."
@@ -1184,13 +1244,25 @@ remove_all_websites_and_databases() {
         info_msg "Removing $domain..."
         
         # Remove Apache configuration
-        a2dissite "$domain.conf" 2>/dev/null || true
-        a2dissite "$domain-le-ssl.conf" 2>/dev/null || true
+        if [ -f "/etc/apache2/sites-enabled/$domain.conf" ]; then
+            a2dissite "$domain.conf" 2>/dev/null || true
+        fi
+        if [ -f "/etc/apache2/sites-enabled/$domain-le-ssl.conf" ]; then
+            a2dissite "$domain-le-ssl.conf" 2>/dev/null || true
+        fi
         rm -f "/etc/apache2/sites-available/$domain.conf"
         rm -f "/etc/apache2/sites-available/$domain-le-ssl.conf"
         
-        # Remove SSL certificates
+        # Remove SSL certificates and all related files
         certbot delete --cert-name "$domain" --non-interactive 2>/dev/null || true
+        
+        # Manual cleanup of any remaining SSL files
+        rm -rf "/etc/letsencrypt/live/$domain" 2>/dev/null || true
+        rm -rf "/etc/letsencrypt/archive/$domain" 2>/dev/null || true
+        rm -f "/etc/letsencrypt/renewal/$domain.conf" 2>/dev/null || true
+        rm -rf "/etc/letsencrypt/live/www.$domain" 2>/dev/null || true
+        rm -rf "/etc/letsencrypt/archive/www.$domain" 2>/dev/null || true
+        rm -f "/etc/letsencrypt/renewal/www.$domain.conf" 2>/dev/null || true
         
         # Remove database if WordPress
         if [ "$type" = "WordPress" ]; then
@@ -1224,8 +1296,34 @@ remove_all_websites_and_databases() {
     # Flush MySQL privileges
     mysql -e "FLUSH PRIVILEGES;" 2>/dev/null || true
     
-    # Reload Apache
-    systemctl reload apache2
+    # Clean up any broken Apache configurations
+    info_msg "Cleaning up Apache configuration..."
+    find /etc/apache2/sites-enabled/ -type l ! -exec test -e {} \; -delete 2>/dev/null || true
+    
+    # Reload Apache with error handling
+    info_msg "Reloading Apache..."
+    if apache2ctl configtest 2>/dev/null; then
+        if systemctl reload apache2; then
+            success_msg "Apache reloaded successfully"
+        else
+            warning_msg "Apache reload failed, attempting restart..."
+            if systemctl restart apache2; then
+                success_msg "Apache restarted successfully"
+            else
+                error_exit "Apache restart failed. Please check configuration manually."
+            fi
+        fi
+    else
+        warning_msg "Apache configuration test failed. Fixing configuration..."
+        # Remove any remaining broken configurations
+        find /etc/apache2/sites-enabled/ -type l ! -exec test -e {} \; -delete 2>/dev/null || true
+        
+        if apache2ctl configtest 2>/dev/null; then
+            systemctl reload apache2 && success_msg "Apache configuration fixed and reloaded"
+        else
+            error_exit "Apache configuration still has errors. Please check manually with 'apache2ctl configtest'"
+        fi
+    fi
     
     success_msg "All websites and databases have been completely removed!"
     warning_msg "Your server is now clean of all website data"
