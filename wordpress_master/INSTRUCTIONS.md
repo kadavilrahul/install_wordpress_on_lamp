@@ -125,7 +125,7 @@ Installs database management interface:
 
 ---
 
-## Backup & Restore Operations
+## Backup and Restore Operations
 
 ### WordPress Backup (Menu Option 4)
 
