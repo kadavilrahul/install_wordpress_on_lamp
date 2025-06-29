@@ -1,0 +1,14 @@
+{
+  "rclone_remotes": [
+    {
+      "client_id": "YOUR_GOOGLE_DRIVE_API_CLIENT_ID",
+      "client_secret": "YOUR_GOOGLE_DRIVE_API_CLIENT_SECRET",
+      "remote_name": "my_first_website"
+    },
+    {
+      "client_id": "YOUR_GOOGLE_DRIVE_API_CLIENT_ID",
+      "client_secret": "YOUR_GOOGLE_DRIVE_API_CLIENT_SECRET",
+      "remote_name": "my_second_website"
+    }
+  ]
+}
