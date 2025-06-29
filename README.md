@@ -1,277 +1,109 @@
-# WordPress Auto-Installer Script on LAMP stack
+# WordPress & Backup Management Toolkit
 
-## Overview
+This repository provides a powerful command-line toolkit for installing, managing, and backing up WordPress websites on a LAMP stack. It also includes a robust, multi-site backup solution using rclone to sync your website data to Google Drive.
 
-This Bash script automates the installation of a LAMP stack, WordPress, and phpMyAdmin on an Ubuntu server. It performs the following tasks:
+## Features
 
-* Updates system packages
-* Asks for domain name, subdomain name or subdirectory name
-* Asks for email, MySQl password, Redis memory to be allocated
-* Installs Apache, MySQL, PHP, and required PHP extensions
-* Configures and enables Apache and MySQL services
-* Downloads and configures WordPress
-* Sets up a MySQL database and user for WordPress
-* Configures WordPress settings
-* Installs other related services
+*   **WordPress Installer**: A menu-driven script (`wordpress_master/install_min.sh`) to install and manage WordPress on a LAMP stack.
+*   **Multi-Site Backups**: A sophisticated script (`wordpress_master/rclone.sh`) to manage backups for multiple websites to Google Drive.
+*   **Automated Configuration**: The rclone script is fully automated and pulls settings from a central `config.json` file.
+*   **Cron Job Management**: Easily set up and manage daily cron jobs for automated backups.
+*   **Utilities**: A collection of scripts for server management, including PHP configuration, SSH security, and more.
 
 ## Prerequisites
 
-Before running the script, ensure that you:
+*   A fresh Ubuntu server.
+*   Root or `sudo` privileges.
+*   A domain name pointed to your server's IP address.
 
-* Have a fresh Ubuntu installation
-* Have sudo privileges
+## Quick Start
 
-## Installation
+### 1. Clone the Repository
 
-### 1. Point the DNS correctly
-Go to your domain registrar and point th DNS to your server for domain, www, subdomain as needed
-
-### 2.  Download the Script
-Clone the repository or download the script manually:
+Clone this repository to your server.
 
 ```bash
 git clone https://github.com/kadavilrahul/install_wordpress_on_lamp.git
-```
-```bash
 cd install_wordpress_on_lamp
 ```
-```bash
-cd custom_script
-```
 
+### 2. Configure Backups (rclone)
 
-### 3. Run these scripts to install Wordpress on LAMP
+Before running the backup script, you need to configure your Google Drive credentials.
 
-For installing wordpress on main domain like your_website.com
+1.  **Copy the Sample Config**:
+    ```bash
+    cp wordpress_master/sample_config.json wordpress_master/config.json
+    ```
 
-```bash
-bash install_on_maindomain.sh
-```
-For installing wordpress on subdomain like test.your_website.com
+2.  **Edit `config.json`**:
+    Open `wordpress_master/config.json` and replace the placeholder values with your own Google Cloud credentials and desired remote names.
 
-```bash
-bash install_on_subdomain.sh
-```
-For installing wordpress onsubdirectory like your_website.com/wordpress
-(Note that many plugins will not function properly in this setup)
+    ```json
+    {
+      "rclone_remotes": [
+        {
+          "client_id": "YOUR_GOOGLE_DRIVE_API_CLIENT_ID",
+          "client_secret": "YOUR_GOOGLE_DRIVE_API_CLIENT_SECRET",
+          "remote_name": "my_first_website_remote"
+        },
+        {
+          "client_id": "YOUR_GOOGLE_DRIVE_API_CLIENT_ID",
+          "client_secret": "YOUR_GOOGLE_DRIVE_API_CLIENT_SECRET",
+          "remote_name": "my_second_website_remote"
+        }
+      ]
+    }
+    ```
+    > **Note**: For instructions on how to get your Google Drive API credentials, please refer to the official rclone documentation.
 
-```bash
-bash install_on_subdirectory.sh
-```
+### 3. Run the Tools
 
-### For installing only apache and SSL
+The main tools are located in the `wordpress_master` directory.
 
-```bash
-cd install_apache_and_ssl_only
-```
+#### WordPress Management
 
-```bash
-bash setup.sh
-```
-
-### 4. Complete wordpress installtion on browser
-
-* Enter your domain/subdomain/subdirectory URL on browser 
-* Enter site title
-* Enter username
-* Enter password
-* Enter admin email ID
-
-### 5. Optionally Install Rclone to transfer backups to cloud like google drive and vice versa
-
-Read below file for rclone installation
-```
-INSTALL_RCLONE.md
-```
-
-### 6. Backup and restore Wordpress installation
-
-To create backups in the form of tar files to /website_backups folder
-
-The scripts use the following configuration variables:
+The `install_min.sh` script is a comprehensive, menu-driven tool for all WordPress and server management tasks.
 
 ```bash
-WWW_PATH="/var/www"                    # Path to website root directories
-BACKUP_DIR="/website_backups"          # Main backup directory
-WEB_BACKUP_DIR="${BACKUP_DIR}/web"     # Website backups location
-PG_BACKUP_DIR="${BACKUP_DIR}/postgresql" # PostgreSQL backups location
-BACKUP_RETENTION_DAYS=7                # Number of days to keep backups
-DB_CREDENTIALS_FILE="/etc/website_db_credentials.conf" # Database credentials file
+sudo ./wordpress_master/install_min.sh
 ```
+
+From its menu, you can:
+*   Install a new WordPress site (on a main domain, subdomain, or subdirectory).
+*   Backup and restore websites locally.
+*   Install phpMyAdmin.
+*   Adjust PHP and Redis settings.
+*   And much more.
+
+#### Google Drive Backups (rclone)
+
+The `rclone.sh` script manages syncing your backups to Google Drive. It uses the `config.json` you created.
 
 ```bash
-bash backup_wordpress.sh
-```
-Execute command from file INSTALL_RCLONE.md to transfer backups from cloud to server
-or 
-Trasnfer backup from an older server
-
-```bash
-bash transfer_backup_from_old_server.sh
+sudo ./wordpress_master/rclone.sh
 ```
 
-Restore backups from tar files located in /website_backups folder
+**Main Menu:**
+*   **Install rclone Package**: A one-time setup to install rclone and jq on your system.
+*   **Manage a Website Remote**: Enter the remote management menu.
+*   **Uninstall rclone Package**: Completely removes rclone and all its configurations.
 
-```bash
-bash restore_wordpress.sh
-```
+**Remote Management Menu:**
+After selecting a remote to manage, you can:
+*   **Configure or Re-Configure Remote**: Authenticate rclone with your Google account (a one-time, browser-based step for each remote).
+*   **Sync from Server TO Google Drive**: Upload your local `/website_backups` to Google Drive.
+*   **Sync FROM Google Drive to Server**: Restore backups from Google Drive to your server.
+*   **Setup Daily Backup Cron Job**: Automate daily backups to Google Drive.
+*   **Delete This Remote & Its Cron Job**: Clean up a specific remote's configuration.
 
-### 7. Modify redis max memory
+## Security
 
-```bash
-bash redis.sh
-```
+The `wordpress_master/config.json` file contains sensitive credentials. This file is already included in the `.gitignore` file to prevent it from being accidentally committed to version control.
 
-```bash
-redis-cli info memory | grep -E "(used_memory_human|maxmemory_human)"
-```
+## Other Scripts
 
-### 8. Miscellaneous tools
-
-- Create SWAP memory, 
-- Modify php max execution time, max memory, upload file size, post max size, max input time
-- Uninterrupted fire wall UFW
-- Fail2ban
-- Check php information at your_website.com/info.php
-
-```bash
-bash miscellaneous.sh
-```
-
-```bash
-bash adjust_php.sh
-```
-
-### 9. Modify time zone
-
-Check your zone
-```bash
-timedatectl list-timezones
-```
-Change timezone. Replace Asia/Kolkata with yours
-```bash
-sudo timedatectl set-timezone Asia/Kolkata
-```
-Verify change
-```bash
-timedatectl status
-```
-
-### 10. Cron jobs for automatic execution
-
-- Renew SSL every month
-```bash
-(crontab -l 2>/dev/null; echo "00 02 * */1 0 python3 -c 'import random; import time; time.sleep(random.random() * 3600)' && certbot renew --quiet") | crontab -
-```
-
-Backup websites
-
-```bash
-(crontab -l 2>/dev/null; echo "00 01 */1 * * bash install_wordpress_on_lamp/backup_wordpress.sh") | crontab -
-```
-
-Transfer files to google drive through rclone:
-
-Change remote_name:/path/to/folder to actual remote name and path of cloud drive
-
-```bash
-(crontab -l 2>/dev/null; echo "00 03 */1 * * /usr/bin/rclone copy /website_backups remote_name:/path/to/folder/ --log-file=/var/log/rclone.log && find /website_backups -type f -exec rm -f {} \;") | crontab -
-```
-
-- Verify cron job
-```bash
-crontab -l
-```
-
-## Optional Installations:
-
-### 1. Disable or enable root login for server security
-
-- Create a new user with root privileges first 
-  You’ll be prompted to set a password and (optionally) fill in user details.
-
-```bash
-sudo adduser newusername
-```
-- Add the User to the sudo Group. This gives the user root privileges via sudo.
-```bash
-sudo usermod -aG sudo newusername
-```
-- Open a new terminal and try logging in:
-```bash
-ssh newusername@your_ip_address
-```
-Then test sudo:
-```bash
-sudo whoami
-```
-If you need to login to new user from root
-```bash
-su newusername
-```
-Now run ssh control script
-Disable root login
-```bash
-bash /root/install_wordpress_on_lamp/ssh_control.sh disable
-```
-Login to another user:
-```bash
-ssh newusername@your_ip_address
-```
-Enter root
-```bash
-sudo -i
-```
-Enable root login
-```bash
-bash /root/install_wordpress_on_lamp/ssh_control.sh enable
-```
-
-### 2. phpmyadmin
-
-```bash
-bash php_myadmin.sh
-```
-
-### 3. Backup and restore HTML installation (Postgres database)
-(Note: Files located in wordperess root directory are automatically backed up and restored through full wordpress backup and restore function)
-
-The scripts use the following configuration variables:
-
-```bash
-PG_BACKUP_DIR="${BACKUP_DIR}/postgresql" # PostgreSQL backups location
-```
-The script expects PostgreSQL database credentials in the following format:
-
-```
-Domain: example.com
-Database: example_db
-```
-
-```bash
-bash backup_postgres.sh
-```
-```bash
-bash restore_postgres.sh
-```
-
-### 4. Modify hosts file on local computer
-Read file to modify hosts file so that installations can be accessed on any server.
-```
-other_tools/modify_hosts_file.md
-```
-
-### 5. Configure Apache to serve both WordPress and static HTML pages without conflicts 
-Read file to modify your Apache configuration to serve static HTML pages stored in /var/www/your_website.com/products while keeping WordPress functional
-```
-other_tools/exclude_static_folders.md
-```
-
-### 6. Serve index.html pages first and then index.php pages 
-Read file to modify your Apache configuration to serve static HTML pages stored in /var/www/your_website.com/products while keeping WordPress functional
-```
-other_tools/serve_index_html.md
-```
+The `custom_script` directory contains standalone scripts for various tasks. While most of their functionality is integrated into the main `install_min.sh` tool, you can run them individually if needed.
 
 ## License
 

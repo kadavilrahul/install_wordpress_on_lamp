@@ -1,2 +1,5 @@
-*config.json
-*json*
+*config.json*
+
+
+# Sensitive configuration files
+wordpress_master/config.json
