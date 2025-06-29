@@ -4,14 +4,48 @@
 
 1. [Quick Start Guide](#quick-start-guide)
 2. [Installation Types](#installation-types)
-3. [Backup & Restore Operations](#backup--restore-operations)
+    - [Complete LAMP Stack and WordPress](#complete-lamp-stack-and-wordpress)
+    - [Apache and SSL Only](#apache-and-ssl-only)
+    - [phpMyAdmin Installation](#phpmyadmin-installation)
+3. [Backup and Restore Operations](#backup-and-restore-operations)
+    - [WordPress Backup](#wordpress-backup)
+    - [WordPress Restore](#wordpress-restore)
+    - [PostgreSQL Backup](#postgresql-backup)
+    - [PostgreSQL Restore](#postgresql-restore)
+    - [Transfer Backups](#transfer-backups)
 4. [System Management](#system-management)
+    - [PHP Configuration](#php-configuration)
+    - [Redis Configuration](#redis-configuration)
+    - [SSH Security Management](#ssh-security-management)
+    - [System Utilities](#system-utilities)
 5. [Database Management](#database-management)
+    - [MySQL Commands Guide](#mysql-commands-guide)
+    - [DBeaver Connection Setup](#dbeaver-connection-setup)
 6. [Troubleshooting Guide](#troubleshooting-guide)
+    - [WordPress Issues](#wordpress-issues)
+    - [Service Status Checks](#service-status-checks)
+    - [System Resource Checks](#system-resource-checks)
+    - [Redis Issues](#redis-issues)
 7. [Advanced Configurations](#advanced-configurations)
+    - [Serving Static HTML with WordPress](#serving-static-html-with-wordpress)
+    - [Directory Index Priority](#directory-index-priority)
+    - [Hosts File Configuration](#hosts-file-configuration)
 8. [Cloud Backup with Rclone](#cloud-backup-with-rclone)
+    - [Installation and Setup](#installation-and-setup)
+    - [Usage Commands](#usage-commands)
+    - [Automated Backups](#automated-backups)
 9. [Development Tools](#development-tools)
+    - [System Status Check](#system-status-check)
+    - [Log File Locations](#log-file-locations)
 10. [Security Best Practices](#security-best-practices)
+    - [Initial Security Setup](#initial-security-setup)
+    - [WordPress Security](#wordpress-security)
+    - [SSL Certificate Management](#ssl-certificate-management)
+    - [Database Security](#database-security)
+    - [File Permissions](#file-permissions)
+    - [Monitoring and Maintenance](#monitoring-and-maintenance)
+11. [Configuration Files](#configuration-files)
+12. [Support and Maintenance](#support-and-maintenance)
 
 ---
 
@@ -46,7 +80,7 @@ sudo ./install.sh
 
 ## Installation Types
 
-### 1. Complete LAMP Stack + WordPress (Menu Option 1)
+### Complete LAMP Stack and WordPress
 
 Choose from three installation types:
 
@@ -87,7 +121,7 @@ A Record: blog.example.com → Your Server IP
 - Website: `https://example.com/blog`
 - Admin: `https://example.com/blog/wp-admin`
 
-### 2. Apache + SSL Only (Menu Option 2)
+### Apache and SSL Only
 
 For setting up domains without WordPress:
 
@@ -115,7 +149,7 @@ For setting up domains without WordPress:
   - Web directory
   - All associated files
 
-### 3. phpMyAdmin Installation (Menu Option 3)
+### phpMyAdmin Installation
 
 Installs database management interface:
 - Pre-configures phpMyAdmin settings
@@ -127,7 +161,7 @@ Installs database management interface:
 
 ## Backup and Restore Operations
 
-### WordPress Backup (Menu Option 4)
+### WordPress Backup
 
 **Automated Process:**
 1. Scans `/var/www/` for WordPress installations
@@ -147,7 +181,7 @@ Installs database management interface:
 sitename_backup_YYYY-MM-DD_HH-MM-SS.tar.gz
 ```
 
-### WordPress Restore (Menu Option 5)
+### WordPress Restore
 
 **Interactive Process:**
 1. Lists available backup files
@@ -166,7 +200,7 @@ sitename_backup_YYYY-MM-DD_HH-MM-SS.tar.gz
 - Enables WordPress debug mode during restore
 - Comprehensive error logging
 
-### PostgreSQL Backup (Menu Option 6)
+### PostgreSQL Backup
 
 **Configuration:**
 - Database name (default: your_db)
@@ -180,7 +214,7 @@ sitename_backup_YYYY-MM-DD_HH-MM-SS.tar.gz
 3. Performs compressed backup using `pg_dump -Fc`
 4. Stores in `/website_backups/postgres/`
 
-### PostgreSQL Restore (Menu Option 7)
+### PostgreSQL Restore
 
 **Process:**
 1. Finds most recent dump file
@@ -188,7 +222,7 @@ sitename_backup_YYYY-MM-DD_HH-MM-SS.tar.gz
 3. Restores using `pg_restore`
 4. Verifies restoration
 
-### Transfer Backups (Menu Option 8)
+### Transfer Backups
 
 **Requirements:**
 - Run on source server
@@ -210,7 +244,7 @@ rsync -avz --progress /website_backups/ root@destination_ip:/website_backups
 
 ## System Management
 
-### PHP Configuration (Menu Option 9)
+### PHP Configuration
 
 **Optimizations Applied:**
 - `upload_max_filesize = 64M`
@@ -228,7 +262,7 @@ rsync -avz --progress /website_backups/ root@destination_ip:/website_backups
 - Apache2
 - PHP-FPM (if running)
 
-### Redis Configuration (Menu Option 10)
+### Redis Configuration
 
 **Setup Process:**
 1. Installs Redis if not present
@@ -241,7 +275,7 @@ rsync -avz --progress /website_backups/ root@destination_ip:/website_backups
 maxmemory XGb  # User-specified
 ```
 
-### SSH Security Management (Menu Option 11)
+### SSH Security Management
 
 **Options:**
 1. **Disable Root SSH Login**
@@ -253,7 +287,7 @@ maxmemory XGb  # User-specified
    - Sets `PermitRootLogin yes`
    - Restarts SSH service
 
-### System Utilities (Menu Option 12)
+### System Utilities
 
 **Available Utilities:**
 
@@ -286,7 +320,7 @@ maxmemory XGb  # User-specified
 
 ## Database Management
 
-### MySQL Commands Guide (Menu Option 14)
+### MySQL Commands Guide
 
 #### Access MySQL
 ```bash
@@ -353,7 +387,7 @@ RESET MASTER;
 
 ---
 
-## Troubleshooting Guide (Menu Option 13)
+## Troubleshooting Guide
 
 ### WordPress Issues
 
@@ -548,7 +582,7 @@ sudo systemctl restart systemd-resolved
 
 ## Cloud Backup with Rclone
 
-### Installation & Setup
+### Installation and Setup
 
 #### Prerequisites
 - Google Cloud account
@@ -663,7 +697,7 @@ sudo apt remove rclone
 
 ## Development Tools
 
-### System Status Check (Menu Option 15)
+### System Status Check
 
 Comprehensive system health check:
 
