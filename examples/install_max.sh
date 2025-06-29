@@ -122,9 +122,7 @@ show_main_menu() {
     echo -e "  ${GREEN}BACKUP & RESTORE${NC}"
     echo "    4) Backup WordPress Sites"
     echo "    5) Restore WordPress Sites"
-    echo "    6) Backup PostgreSQL Database"
-    echo "    7) Restore PostgreSQL Database"
-    echo "    8) Transfer Backups from Old Server"
+    
     echo
     echo -e "  ${GREEN}SYSTEM MANAGEMENT${NC}"
     echo "    9) Adjust PHP Configuration"
@@ -136,11 +134,13 @@ show_main_menu() {
     echo "   13) Remove Websites & Databases"
     echo
     echo -e "  ${GREEN}TROUBLESHOOTING & TOOLS${NC}"
-    echo "   14) Troubleshooting Guide"
-    echo "   15) MySQL Database Commands"
-    echo "   16) System Status Check"
+    echo "   14) Fix Apache Configurations"
+    echo "   15) Troubleshooting Guide"
+    echo "   16) MySQL Database Commands"
     echo
-    echo "   17) Exit"
+    echo
+    echo "   17) System Status Check"
+    echo "   18) Exit"
     echo
     echo -e "${CYAN}=============================================================================${NC}"
 }
@@ -299,11 +299,69 @@ install_base_lamp_stack() {
     
     # Secure MySQL installation
     info_msg "Securing MySQL installation..."
-    mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$DB_ROOT_PASSWORD';" || error_exit "Failed to set MySQL root password"
-    mysql -u root -p"$DB_ROOT_PASSWORD" -e "DELETE FROM mysql.user WHERE User='';" || warning_msg "Failed to remove anonymous users"
-    mysql -u root -p"$DB_ROOT_PASSWORD" -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');" || warning_msg "Failed to remove remote root access"
-    mysql -u root -p"$DB_ROOT_PASSWORD" -e "DROP DATABASE IF EXISTS test;" || warning_msg "Test database not found"
-    mysql -u root -p"$DB_ROOT_PASSWORD" -e "FLUSH PRIVILEGES;" || error_exit "Failed to flush privileges"
+    
+    # Check if MySQL root already has a password
+    if mysql -e "SELECT 1;" 2>/dev/null; then
+        # MySQL root has no password, set the new one
+        info_msg "Setting new MySQL root password..."
+        mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$DB_ROOT_PASSWORD';" || error_exit "Failed to set MySQL root password"
+        MYSQL_AUTH="-u root -p$DB_ROOT_PASSWORD"
+        success_msg "MySQL root password set successfully"
+    else
+        # MySQL root already has a password
+        warning_msg "MySQL root already has a password set"
+        echo -e "${YELLOW}Please choose an option:${NC}"
+        echo "1) Use existing MySQL root password (recommended)"
+        echo "2) Reset MySQL root password (requires stopping MySQL)"
+        echo "3) Skip MySQL security setup"
+        
+        echo -n -e "${CYAN}Select option (1-3): ${NC}"
+        read mysql_option < /dev/tty
+        
+        case $mysql_option in
+            1)
+                # Prompt for existing password
+                read -sp "Enter existing MySQL root password: " EXISTING_PASSWORD
+                echo
+                # Test the password
+                if mysql -u root -p"$EXISTING_PASSWORD" -e "SELECT 1;" 2>/dev/null; then
+                    DB_ROOT_PASSWORD="$EXISTING_PASSWORD"
+                    MYSQL_AUTH="-u root -p$DB_ROOT_PASSWORD"
+                    success_msg "Using existing MySQL root password"
+                else
+                    error_exit "Invalid MySQL root password provided"
+                fi
+                ;;
+            2)
+                # Reset password (advanced option)
+                warning_msg "Resetting MySQL root password..."
+                systemctl stop mysql
+                mysqld_safe --skip-grant-tables --skip-networking &
+                sleep 5
+                mysql -e "FLUSH PRIVILEGES; ALTER USER 'root'@'localhost' IDENTIFIED BY '$DB_ROOT_PASSWORD';" || error_exit "Failed to reset MySQL root password"
+                pkill mysqld_safe
+                systemctl start mysql
+                MYSQL_AUTH="-u root -p$DB_ROOT_PASSWORD"
+                success_msg "MySQL root password reset successfully"
+                ;;
+            3)
+                warning_msg "Skipping MySQL security setup"
+                return
+                ;;
+            *)
+                error_exit "Invalid option selected"
+                ;;
+        esac
+    fi
+    
+    # Continue with security setup using the determined authentication
+    info_msg "Applying MySQL security settings..."
+    mysql $MYSQL_AUTH -e "DELETE FROM mysql.user WHERE User='';" || warning_msg "Failed to remove anonymous users"
+    mysql $MYSQL_AUTH -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');" || warning_msg "Failed to remove remote root access"
+    mysql $MYSQL_AUTH -e "DROP DATABASE IF EXISTS test;" || warning_msg "Test database not found"
+    mysql $MYSQL_AUTH -e "FLUSH PRIVILEGES;" || error_exit "Failed to flush privileges"
+    
+    success_msg "MySQL security setup completed"
     
     # Install PHP and extensions
     info_msg "Installing PHP and extensions..."
@@ -355,10 +413,10 @@ install_wordpress_main_domain() {
     DB_PASSWORD=$(openssl rand -base64 12)
     
     info_msg "Creating database: $DB_NAME"
-    mysql -u root -p"$DB_ROOT_PASSWORD" -e "CREATE DATABASE $DB_NAME;" || error_exit "Failed to create database"
-    mysql -u root -p"$DB_ROOT_PASSWORD" -e "CREATE USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';" || error_exit "Failed to create database user"
-    mysql -u root -p"$DB_ROOT_PASSWORD" -e "GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';" || error_exit "Failed to grant privileges"
-    mysql -u root -p"$DB_ROOT_PASSWORD" -e "FLUSH PRIVILEGES;" || error_exit "Failed to flush privileges"
+    mysql $MYSQL_AUTH -e "CREATE DATABASE $DB_NAME;" || error_exit "Failed to create database"
+    mysql $MYSQL_AUTH -e "CREATE USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';" || error_exit "Failed to create database user"
+    mysql $MYSQL_AUTH -e "GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';" || error_exit "Failed to grant privileges"
+    mysql $MYSQL_AUTH -e "FLUSH PRIVILEGES;" || error_exit "Failed to flush privileges"
     
     # Configure WordPress
     info_msg "Configuring WordPress..."
@@ -595,10 +653,10 @@ install_wordpress_subdomain() {
     DB_PASSWORD=$(openssl rand -base64 12)
     
     info_msg "Creating database: $DB_NAME"
-    mysql -u root -p"$DB_ROOT_PASSWORD" -e "CREATE DATABASE $DB_NAME;" || error_exit "Failed to create database"
-    mysql -u root -p"$DB_ROOT_PASSWORD" -e "CREATE USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';" || error_exit "Failed to create database user"
-    mysql -u root -p"$DB_ROOT_PASSWORD" -e "GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';" || error_exit "Failed to grant privileges"
-    mysql -u root -p"$DB_ROOT_PASSWORD" -e "FLUSH PRIVILEGES;" || error_exit "Failed to flush privileges"
+    mysql $MYSQL_AUTH -e "CREATE DATABASE $DB_NAME;" || error_exit "Failed to create database"
+    mysql $MYSQL_AUTH -e "CREATE USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';" || error_exit "Failed to create database user"
+    mysql $MYSQL_AUTH -e "GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';" || error_exit "Failed to grant privileges"
+    mysql $MYSQL_AUTH -e "FLUSH PRIVILEGES;" || error_exit "Failed to flush privileges"
     
     # Configure WordPress
     info_msg "Configuring WordPress..."
@@ -673,10 +731,10 @@ install_wordpress_subdirectory() {
     DB_PASSWORD=$(openssl rand -base64 12)
     
     info_msg "Creating database: $DB_NAME"
-    mysql -u root -p"$DB_ROOT_PASSWORD" -e "CREATE DATABASE $DB_NAME;" || error_exit "Failed to create database"
-    mysql -u root -p"$DB_ROOT_PASSWORD" -e "CREATE USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';" || error_exit "Failed to create database user"
-    mysql -u root -p"$DB_ROOT_PASSWORD" -e "GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';" || error_exit "Failed to grant privileges"
-    mysql -u root -p"$DB_ROOT_PASSWORD" -e "FLUSH PRIVILEGES;" || error_exit "Failed to flush privileges"
+    mysql $MYSQL_AUTH -e "CREATE DATABASE $DB_NAME;" || error_exit "Failed to create database"
+    mysql $MYSQL_AUTH -e "CREATE USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';" || error_exit "Failed to create database user"
+    mysql $MYSQL_AUTH -e "GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';" || error_exit "Failed to grant privileges"
+    mysql $MYSQL_AUTH -e "FLUSH PRIVILEGES;" || error_exit "Failed to flush privileges"
     
     # Configure WordPress
     info_msg "Configuring WordPress..."
@@ -2157,7 +2215,7 @@ main() {
     
     while true; do
         show_main_menu
-        read -p "$(echo -e "${CYAN}Please select an option (1-17): ${NC}")" choice
+            read -p "$(echo -e "${CYAN}Please select an option (1-18): ${NC}")" choice
         
         case $choice in
             1) install_lamp_wordpress ;;
@@ -2173,10 +2231,10 @@ main() {
             11) ssh_security_management ;;
             12) system_utilities ;;
             13) remove_websites_and_databases ;;
-            14) show_troubleshooting_guide ;;
-            15) mysql_commands_guide ;;
-            16) system_status_check ;;
-            17) 
+            14) fix_all_apache_configs ;;
+            15) show_troubleshooting_guide ;;
+            16) mysql_commands_guide ;;
+            18) 
                 echo -e "${GREEN}Thank you for using WordPress Master!${NC}"
                 exit 0
                 ;;
@@ -2192,3 +2250,184 @@ main() {
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi
+# Improved Apache virtual host creation with validation
+create_apache_vhost_safe() {
+    local domain="$1"
+    local site_dir="$2"
+    
+    info_msg "Creating Apache virtual host for $domain"
+    
+    # Validate inputs
+    if [ -z "$domain" ]; then
+        error_exit "Domain name is required for virtual host creation"
+    fi
+    
+    if [ -z "$site_dir" ]; then
+        error_exit "Site directory is required for virtual host creation"
+    fi
+    
+    # Set default admin email if not provided or invalid
+    local admin_email="${ADMIN_EMAIL:-webmaster@$domain}"
+    
+    # Validate email format (basic validation)
+    if [[ ! "$admin_email" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+        warning_msg "Invalid admin email format, using default: webmaster@$domain"
+        admin_email="webmaster@$domain"
+    fi
+    
+    # Backup existing config if it exists
+    if [ -f "/etc/apache2/sites-available/$domain.conf" ]; then
+        cp "/etc/apache2/sites-available/$domain.conf" "/etc/apache2/sites-available/$domain.conf.backup.$(date +%Y%m%d_%H%M%S)"
+        info_msg "Backed up existing configuration"
+    fi
+    
+    cat > "/etc/apache2/sites-available/$domain.conf" << VHOST_EOF
+<VirtualHost *:80>
+    ServerAdmin $admin_email
+    ServerName $domain
+    ServerAlias www.$domain
+    DocumentRoot $site_dir
+    
+    <Directory $site_dir>
+        AllowOverride All
+        Require all granted
+    </Directory>
+    
+    ErrorLog \${APACHE_LOG_DIR}/error_$domain.log
+    CustomLog \${APACHE_LOG_DIR}/access_$domain.log combined
+</VirtualHost>
+VHOST_EOF
+    
+    # Test the new configuration
+    if ! apache2ctl configtest; then
+        error_exit "Apache configuration test failed after creating virtual host for $domain"
+    fi
+    
+    # Enable site
+    a2ensite "$domain.conf" || error_exit "Failed to enable site"
+    
+    # Test reload before actually reloading
+    if systemctl is-active --quiet apache2; then
+        systemctl reload apache2 || error_exit "Failed to reload Apache"
+    else
+        warning_msg "Apache is not running, starting it instead of reloading"
+        systemctl start apache2 || error_exit "Failed to start Apache"
+    fi
+    
+    success_msg "Apache virtual host created for $domain"
+}
+
+
+#=============================================================================
+# APACHE CONFIGURATION VALIDATION AND REPAIR
+#=============================================================================
+
+# Validate and fix Apache virtual host configurations
+validate_apache_config() {
+    local domain="$1"
+    local config_file="/etc/apache2/sites-available/$domain.conf"
+    
+    if [ ! -f "$config_file" ]; then
+        warning_msg "Configuration file not found: $config_file"
+        return 1
+    fi
+    
+    # Check for broken ServerAdmin directives
+    if grep -q "ServerAdmin.*Error:" "$config_file" || grep -q "ServerAdmin.*root@.*#" "$config_file"; then
+        warning_msg "Found broken ServerAdmin in $config_file, fixing..."
+        
+        # Create backup
+        cp "$config_file" "${config_file}.broken.$(date +%Y%m%d_%H%M%S)"
+        
+        # Get document root from the file
+        local doc_root=$(grep "DocumentRoot" "$config_file" | head -1 | awk '{print $2}')
+        
+        # If document root is also broken, set a default
+        if [[ "$doc_root" == *"root@"* ]] || [[ "$doc_root" == *"#"* ]]; then
+            doc_root="/var/www/$domain"
+            mkdir -p "$doc_root"
+            chown -R www-data:www-data "$doc_root"
+        fi
+        
+        # Create a clean configuration
+        cat > "$config_file" << VHOST_EOF
+<VirtualHost *:80>
+    ServerAdmin webmaster@$domain
+    ServerName $domain
+    ServerAlias www.$domain
+    DocumentRoot $doc_root
+    
+    <Directory $doc_root>
+        AllowOverride All
+        Require all granted
+    </Directory>
+    
+    ErrorLog \${APACHE_LOG_DIR}/error_$domain.log
+    CustomLog \${APACHE_LOG_DIR}/access_$domain.log combined
+</VirtualHost>
+VHOST_EOF
+        
+        success_msg "Fixed Apache configuration for $domain"
+        return 0
+    fi
+    
+    return 1
+}
+
+# Scan and fix all broken Apache configurations
+fix_all_apache_configs() {
+    show_header
+    info_msg "Scanning for broken Apache virtual host configurations..."
+    
+    local fixed_count=0
+    for config_file in /etc/apache2/sites-available/*.conf; do
+        if [ -f "$config_file" ]; then
+            local domain=$(basename "$config_file" .conf)
+            if validate_apache_config "$domain"; then
+                ((fixed_count++))
+            fi
+        fi
+    done
+    
+    if [ $fixed_count -gt 0 ]; then
+        success_msg "Fixed $fixed_count configuration files"
+        
+        # Test Apache configuration
+        info_msg "Testing Apache configuration..."
+        if apache2ctl configtest; then
+            success_msg "Apache configuration is valid"
+            
+            # Restart Apache if it was broken
+            if ! systemctl is-active --quiet apache2; then
+                info_msg "Starting Apache..."
+                systemctl start apache2 || error_exit "Failed to start Apache"
+            else
+                info_msg "Reloading Apache..."
+                systemctl reload apache2 || error_exit "Failed to reload Apache"
+            fi
+            
+            success_msg "Apache is now running properly"
+        else
+            error_exit "Apache configuration still has issues after fixes"
+        fi
+    else
+        info_msg "No broken configurations found"
+        
+        # Still test Apache configuration
+        if apache2ctl configtest; then
+            success_msg "Apache configuration is valid"
+            if systemctl is-active --quiet apache2; then
+                success_msg "Apache is running properly"
+            else
+                info_msg "Starting Apache..."
+                systemctl start apache2 || error_exit "Failed to start Apache"
+                success_msg "Apache started successfully"
+            fi
+        else
+            warning_msg "Apache configuration has issues that need manual review"
+        fi
+    fi
+    
+    echo
+    read -p "Press Enter to continue..."
+}

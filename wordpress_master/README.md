@@ -37,26 +37,18 @@ WordPress Master is a comprehensive, interactive installation and management scr
 
 1. Download the script:
 ```bash
-wget https://raw.githubusercontent.com/your-repo/wordpress_master/main/install.sh
+wget https://raw.githubusercontent.com/install_wordpress_on_lamp/wordpress_master/main.sh
 ```
 
-2. Make it executable:
+2. Run as root:
 ```bash
-chmod +x install.sh
-```
-
-3. Run as root:
-```bash
-sudo ./install.sh
+bash main.sh
 ```
 
 ## Usage
 
 The script provides an interactive menu system. Simply run the script and follow the prompts:
 
-```bash
-sudo ./install.sh
-```
 
 ### Menu Options
 

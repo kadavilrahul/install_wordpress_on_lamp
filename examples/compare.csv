@@ -1,0 +1,152 @@
+Feature Category,Feature,install.sh,install_min.sh,install_minimum.sh,install_pro.sh,Description
+Basic Info,Script Name,WordPress Master Full,WordPress Master Minimalistic,WordPress Minimum,WordPress Professional,Script identification
+Basic Info,Lines of Code,2433,769,112,135,Total lines in script
+Basic Info,File Size (approx),~97KB,~31KB,~4.5KB,~5.4KB,Approximate file size
+Basic Info,Complexity Level,Very High,High,Very Low,Low,Overall script complexity
+Basic Info,Target Audience,Advanced Users,Power Users,Beginners,Intermediate Users,Intended user skill level
+
+Installation Types,Main Domain Installation,Yes,Yes,Yes,Yes,Install WordPress on main domain (example.com)
+Installation Types,Subdomain Installation,Yes,Yes,No,No,Install WordPress on subdomain (blog.example.com)
+Installation Types,Subdirectory Installation,Yes,Yes,No,No,Install WordPress in subdirectory (example.com/blog)
+Installation Types,Apache + SSL Only,Yes,Yes,No,No,Install just Apache web server with SSL
+Installation Types,Multiple Installation Types Menu,Yes,Yes,No,No,Interactive menu for choosing installation type
+
+LAMP Stack,Apache Installation,Yes,Yes,Yes,Yes,Install and configure Apache web server
+LAMP Stack,MySQL Installation,Yes,Yes,Yes,Yes,Install and configure MySQL database
+LAMP Stack,PHP Installation,Yes,Yes,Yes,Yes,Install PHP and required extensions
+LAMP Stack,PHP Extensions,Yes (Comprehensive),Yes (Comprehensive),Yes (Basic),Yes (Basic),PHP modules for WordPress
+LAMP Stack,Redis Installation,Yes,Yes,Yes,Yes,Install and configure Redis caching
+LAMP Stack,System Package Updates,Yes,Yes,Yes,Yes,Update system packages before installation
+
+Database Management,MySQL Security Hardening,Yes,Yes,Yes,Yes,Secure MySQL installation
+Database Management,Database Creation,Yes,Yes,Yes,Yes,Create WordPress database
+Database Management,Database User Creation,Yes,Yes,Yes,Yes,Create dedicated database user
+Database Management,Database Privileges,Yes,Yes,Yes,Yes,Grant appropriate database permissions
+Database Management,Password Generation,Yes,Yes,Yes,Yes,Generate secure database passwords
+Database Management,Existing MySQL Password Handling,Yes,Yes,No,No,Handle existing MySQL root passwords
+
+WordPress Setup,WordPress Download,Yes,Yes,Yes,Yes,Download latest WordPress
+WordPress Setup,WordPress Extraction,Yes,Yes,Yes,Yes,Extract WordPress files
+WordPress Setup,wp-config.php Creation,Yes,Yes,Yes,Yes,Configure WordPress database connection
+WordPress Setup,WordPress Salts,Yes,Yes,Yes,Yes,Generate WordPress security salts
+WordPress Setup,File Permissions,Yes,Yes,Yes,Yes,Set correct file permissions
+WordPress Setup,Redis Configuration,Yes,Yes,Yes,Yes,Configure Redis for WordPress
+WordPress Setup,Memory Limits,Yes,Yes,No,No,Set WordPress memory limits
+WordPress Setup,Filesystem Method,Yes,Yes,Yes,Yes,Set direct filesystem access
+
+Apache Configuration,Virtual Host Creation,Yes,Yes,Yes,Yes,Create Apache virtual host
+Apache Configuration,Apache Modules,Yes,Yes,Yes,Yes,Enable required Apache modules (rewrite ssl)
+Apache Configuration,Site Enabling,Yes,Yes,Yes,Yes,Enable the new site
+Apache Configuration,Apache Restart,Yes,Yes,Yes,Yes,Restart Apache service
+Apache Configuration,Configuration Validation,Yes,Yes,No,No,Test Apache configuration
+Apache Configuration,Broken Config Repair,Yes,Yes,No,No,Fix broken Apache configurations
+
+SSL/Security,SSL Certificate Installation,Yes,Yes,Yes,Yes,Install Let's Encrypt SSL certificates
+SSL/Security,Automatic SSL Renewal,Yes,Yes,Yes,Yes,Setup automatic SSL renewal
+SSL/Security,Domain Validation,Yes,Yes,No,No,Validate domain before SSL installation
+SSL/Security,Multiple Domain SSL,Yes,Yes,Yes,Yes,SSL for both domain and www.domain
+SSL/Security,SSL Conflict Detection,Yes,Yes,No,No,Detect and handle SSL conflicts
+
+Tools Installation,WP-CLI Installation,Yes,Yes,Yes,Yes,Install WordPress command line interface
+Tools Installation,Certbot Installation,Yes,Yes,Yes,Yes,Install Let's Encrypt client
+Tools Installation,Additional Tools,Yes,Yes,No,No,Install curl wget unzip etc
+
+Backup & Restore,WordPress Backup,Yes,Yes,No,Yes,Backup WordPress sites and databases
+Backup & Restore,WordPress Restore,Yes,Yes,No,Yes,Restore WordPress from backups
+Backup & Restore,PostgreSQL Backup,Yes,Yes,No,No,Backup PostgreSQL databases
+Backup & Restore,PostgreSQL Restore,Yes,Yes,No,No,Restore PostgreSQL databases
+Backup & Restore,Backup Transfer,Yes,Yes,No,No,Transfer backups between servers
+Backup & Restore,Automatic Cleanup,Yes,Yes,No,Yes,Remove old backup files
+Backup & Restore,Database Export,Yes,Yes,No,Yes,Export WordPress databases
+Backup & Restore,Backup Listing,Yes,Yes,No,No,List available backups
+
+System Management,PHP Configuration,Yes,Yes,No,No,Optimize PHP settings
+System Management,Redis Configuration,Yes,Yes,No,No,Configure Redis memory and settings
+System Management,SSH Security,Yes,Yes,No,No,Manage SSH root access
+System Management,UFW Firewall,Yes,Yes,No,No,Install and configure firewall
+System Management,Fail2ban,Yes,Yes,No,No,Install intrusion prevention
+System Management,Swap File Creation,Yes,Yes,No,No,Create system swap file
+System Management,System Updates,Yes,Yes,No,No,Update system packages
+
+Website Management,Website Removal,Yes,Yes,No,Yes,Remove websites and databases
+Website Management,Bulk Website Removal,Yes,Yes,No,No,Remove all websites at once
+Website Management,Database Cleanup,Yes,Yes,No,Yes,Clean up associated databases
+Website Management,SSL Certificate Removal,Yes,Yes,No,Yes,Remove SSL certificates
+Website Management,Apache Config Cleanup,Yes,Yes,No,No,Clean up Apache configurations
+
+User Interface,Interactive Menu System,Yes,Yes,No,No,Full interactive menu
+User Interface,Color-coded Output,Yes,Yes,Yes,Yes,Colored terminal output
+User Interface,Progress Indicators,Yes,Yes,Yes,Yes,Show installation progress
+User Interface,Input Validation,Yes,Yes,Yes,Yes,Validate user inputs
+User Interface,Confirmation Prompts,Yes,Yes,No,Yes,Confirm destructive actions
+User Interface,Error Messages,Yes,Yes,Yes,Yes,Clear error reporting
+User Interface,Success Messages,Yes,Yes,Yes,Yes,Installation success feedback
+
+Configuration,Configuration Persistence,Yes,Yes,No,No,Save settings between sessions
+Configuration,Config File Management,Yes,Yes,No,No,Manage configuration files
+Configuration,Installation Summary,Yes,Yes,Yes,Yes,Show installation details
+Configuration,Credential Display,Yes,Yes,Yes,Yes,Display database credentials
+
+Logging & Debugging,Comprehensive Logging,Yes,Yes,Yes,Yes,Log all operations
+Logging & Debugging,Error Logging,Yes,Yes,Yes,Yes,Log errors and failures
+Logging & Debugging,Debug Information,Yes,Yes,No,No,Detailed debug output
+Logging & Debugging,Log File Management,Yes,Yes,No,No,Manage log files
+
+System Checks,Root Permission Check,Yes,Yes,Yes,Yes,Verify script runs as root
+System Checks,System Requirements,Yes,Yes,No,No,Check disk space internet etc
+System Checks,Service Status Check,Yes,Yes,No,No,Monitor service status
+System Checks,Ubuntu Version Check,Yes,Yes,No,No,Verify Ubuntu compatibility
+System Checks,Dependency Checks,Yes,Yes,No,No,Check required dependencies
+
+Troubleshooting,Troubleshooting Guide,Yes,Yes,No,No,Built-in help documentation
+Troubleshooting,MySQL Commands Guide,Yes,Yes,No,No,Database management help
+Troubleshooting,System Status Check,Yes,Yes,No,No,Check system health
+Troubleshooting,Service Monitoring,Yes,Yes,No,No,Monitor Apache MySQL Redis
+Troubleshooting,Log Analysis,Yes,Yes,No,No,Analyze system logs
+
+Advanced Features,Multiple Site Support,Yes,Yes,No,Yes,Manage multiple WordPress sites
+Advanced Features,Command Line Arguments,No,No,No,Yes,Accept command line parameters
+Advanced Features,Modular Functions,Yes,Yes,No,Yes,Organized function structure
+Advanced Features,Error Recovery,Yes,Yes,No,No,Recover from installation errors
+Advanced Features,Rollback Capability,Yes,Yes,No,No,Undo failed installations
+
+Performance,Installation Speed,Slow,Fast,Very Fast,Fast,Time to complete installation
+Performance,Resource Usage,High,Medium,Low,Low,System resource consumption
+Performance,Script Loading Time,Slow,Fast,Very Fast,Very Fast,Time to load script
+
+Maintenance,Code Maintainability,Complex,Good,Excellent,Good,Ease of code maintenance
+Maintenance,Feature Extensibility,High,Medium,Low,Medium,Ability to add new features
+Maintenance,Code Documentation,Extensive,Good,Minimal,Good,Code comments and documentation
+Maintenance,Function Organization,Excellent,Good,Basic,Good,Code structure and organization
+
+Use Cases,Production Servers,Excellent,Excellent,Good,Good,Suitable for production use
+Use Cases,Development Servers,Excellent,Excellent,Excellent,Good,Suitable for development
+Use Cases,Learning/Education,Good,Good,Excellent,Good,Good for learning WordPress setup
+Use Cases,Quick Deployment,Poor,Good,Excellent,Excellent,Speed of deployment
+Use Cases,Enterprise Use,Excellent,Good,Poor,Good,Enterprise environment suitability
+
+Support Features,phpMyAdmin Installation,Yes,Yes,No,No,Install database management interface
+Support Features,Multiple PHP Versions,Yes,Yes,No,No,Support different PHP versions
+Support Features,Custom Domain Handling,Yes,Yes,No,No,Handle various domain configurations
+Support Features,Backup Scheduling,No,No,No,No,Automated backup scheduling
+Support Features,Monitoring Integration,No,No,No,No,Integration with monitoring tools
+
+Security Features,MySQL Hardening,Yes,Yes,Yes,Yes,Secure MySQL configuration
+Security Features,File Permission Security,Yes,Yes,Yes,Yes,Secure file permissions
+Security Features,WordPress Security,Yes,Yes,No,No,WordPress-specific security measures
+Security Features,System Hardening,Yes,Yes,No,No,Overall system security
+Security Features,SSL Security,Yes,Yes,Yes,Yes,HTTPS encryption
+
+Automation Level,Fully Automated,No,No,Yes,No,Requires no user interaction
+Automation Level,Semi-Automated,Yes,Yes,No,Yes,Requires some user input
+Automation Level,Manual Steps Required,Few,Few,None,Few,Manual intervention needed
+
+Error Handling,Comprehensive Error Handling,Yes,Yes,Basic,Basic,Detailed error management
+Error Handling,Graceful Failure,Yes,Yes,No,No,Handle failures gracefully
+Error Handling,Error Recovery,Yes,Yes,No,No,Recover from errors
+Error Handling,Validation Checks,Extensive,Good,Basic,Basic,Input and system validation
+
+Documentation,Inline Documentation,Extensive,Good,Minimal,Good,Code comments
+Documentation,User Guide,Yes,Yes,No,No,Built-in user documentation
+Documentation,Feature Documentation,Yes,Yes,No,No,Feature-specific help
+Documentation,Troubleshooting Docs,Yes,Yes,No,No,Problem-solving documentation
