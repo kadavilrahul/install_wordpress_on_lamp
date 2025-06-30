@@ -644,49 +644,42 @@ rclone lsl my_remote:
 rclone tree my_remote:
 ```
 
-### Usage Commands
+### Usage
 
-#### Check Storage Size
+The `rclone.sh` script provides an interactive menu to manage your cloud remotes. After running `sudo ./rclone.sh` and selecting a configured remote, you will see the following options:
+
+1.  **Configure or Re-Configure Remote**: This allows you to authenticate or re-authenticate the selected remote with your Google Drive account. This is a one-time, browser-based step for each remote.
+
+2.  **Check Folder Sizes**: This option checks the size of the local `/website_backups` directory and the total size of the selected remote on Google Drive, helping you monitor storage usage.
+
+3.  **Restore Backups from Drive (Browse)**: This opens an interactive file browser that lets you navigate the directories on your Google Drive remote. You can:
+    - Navigate into folders.
+    - Go up to the parent directory.
+    - Select one or more files from the current directory to restore to your server's `/website_backups` folder.
+
+### Manual Backup to Cloud
+
+The `rclone.sh` script is primarily designed for restoring backups. To upload your local backups from `/website_backups` to your Google Drive remote, you should run the `rclone copy` command manually. This gives you full control over the process.
+
 ```bash
-# Entire drive
-rclone size "my_remote:"
-
-# Specific folder
-rclone size "my_remote:/path/to/folder/"
+# Example: Copy all local backups to the root of your remote
+sudo rclone copy /website_backups "my_remote:" --progress --log-file=/var/log/rclone_manual.log
 ```
 
-#### Check Latest Backups
-```bash
-rclone lsl "my_remote:/path/to/folder/" | sort -k2,2 | tail -n 2
-```
+### Automated Cloud Backups (Manual Cron Job Setup)
 
-#### Restore Latest Files
-```bash
-read -p "How many latest backup files do you want to copy? (1 or 2): " NUM && [[ "$NUM" == "1" || "$NUM" == "2" ]] && rclone lsl "my_remote:/path/to/folder/" | sort -k2,2 | tail -n $NUM | awk '{print $NF}' | xargs -I{} rclone copy -v "my_remote:/path/to/folder/{}" /website_backups --progress || echo "Invalid input. Please enter 1 or 2."
-```
-
-#### Backup Operations
-```bash
-# Copy to cloud (preserves versions)
-rclone copy /website_backups "my_remote:" --log-file=/var/log/rclone.log
-
-# Sync to cloud (overwrites)
-rclone sync /website_backups "my_remote:" --progress
-
-# Copy specific file
-rclone copy -v "my_remote:/path/to/backup.tar.gz" /website_backups --progress
-```
-
-### Automated Backups
+To automate the process of uploading your backups to the cloud, you can set up a cron job manually.
 
 #### Cron Job Setup
 ```bash
-# Edit crontab
-crontab -e
+# Edit the root user's crontab
+sudo crontab -e
 
-# Add daily backup at 5:00 AM
-0 5 */1 * * /usr/bin/rclone copy /website_backups "my_remote:" --log-file=/var/log/rclone.log
+# Add a line to run the backup daily at 5:00 AM
+# Replace 'my_remote' with the actual name of your configured remote
+0 5 * * * /usr/bin/rclone copy /website_backups "my_remote:" --log-file=/var/log/rclone_cron.log
 ```
+This ensures your local backups are regularly and automatically synced to Google Drive.
 
 ### Uninstallation
 ```bash

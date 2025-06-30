@@ -1,4 +1,4 @@
 # Ignore the specific configuration file with secrets
 # but allow sample configurations to be version controlled.
 # Using a specific path is safer than a broad wildcard.
-/wordpress_master/config.json
+config.json
