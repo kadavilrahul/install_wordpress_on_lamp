@@ -5,11 +5,13 @@ This repository provides a powerful command-line toolkit for installing, managin
 ## Features
 
 *   **Comprehensive WordPress Management**: A menu-driven script (`main.sh`) to install and manage WordPress on a LAMP stack, including main domain, subdomain, and subdirectory installations.
+*   **Integrated Backup System**: Full WordPress site backup/restore capabilities with local storage options.
+*   **Database Management**: Includes phpMyAdmin installation, MySQL and PostgreSQL backup/restore capabilities.
 *   **Cloud Backups**: A sophisticated script (`rclone.sh`) to manage backups for multiple websites to Google Drive.
 *   **Automated Configuration**: The rclone script is fully automated and pulls settings from a central `config.json` file.
 *   **Cron Job Management**: Easily set up and manage daily cron jobs for automated backups.
-*   **System Management**: Adjust PHP settings, manage SSH security, and use various system utilities.
-*   **Database Tools**: Includes phpMyAdmin installation and PostgreSQL backup/restore capabilities.
+*   **System Management**: Adjust PHP settings, manage SSH security, Redis configuration, and use various system utilities.
+*   **Extended Utilities**: Integrated with `miscellaneous.sh` for additional backup/restore and maintenance functions.
 *   **Detailed Documentation**: For a full guide, see [INSTRUCTIONS.md](INSTRUCTIONS.md).
 
 ## Prerequisites

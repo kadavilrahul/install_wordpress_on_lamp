@@ -1,7 +1,13 @@
 #!/bin/bash
 
 #=============================================================================
-# WordPress Master - Minimalistic Installation Script
+# WordPress Master - Comprehensive WordPress Management Toolkit
+# Features:
+# - LAMP stack + WordPress installation
+# - Backup/Restore WordPress sites
+# - Backup/Restore PostgreSQL databases
+# - System utilities and security management
+# - Integrated with miscellaneous utilities
 #=============================================================================
 
 # Colors and globals
@@ -28,6 +34,7 @@ check_system() {
 }
 
 # Configuration management
+# Removed miscellaneous.sh sourcing - all functions now in main.sh
 load_config() { [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE" && info "Configuration loaded"; }
 save_config() {
     cat > "$CONFIG_FILE" << EOF
