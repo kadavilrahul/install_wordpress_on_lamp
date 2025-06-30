@@ -24,6 +24,8 @@ This repository provides a powerful command-line toolkit for installing, managin
 
 ```bash
 git clone https://github.com/kadavilrahul/install_wordpress_on_lamp.git
+```
+```bash
 cd install_wordpress_on_lamp
 ```
 
@@ -32,7 +34,7 @@ cd install_wordpress_on_lamp
 The `main.sh` script is a comprehensive, menu-driven tool for all WordPress and server management tasks.
 
 ```bash
-sudo ./main.sh
+bash main.sh
 ```
 
 From its menu, you can:
@@ -79,7 +81,7 @@ The `rclone.sh` script manages syncing your backups to Google Drive.
 Run the script to access the backup management menu.
 
 ```bash
-sudo ./rclone.sh
+bash rclone.sh
 ```
 
 From its menu, you can:
@@ -92,6 +94,40 @@ From its menu, you can:
 ## Security
 
 The `config.json` file contains sensitive credentials. This file is already included in the `.gitignore` file to prevent it from being accidentally committed to version control.
+
+## WordPress Troubleshooting Script
+
+The `troubleshooting.sh` script provides comprehensive diagnostics and fixes for common WordPress issues.
+
+### Features:
+- Automatic detection of WordPress installations in /var/www/
+- Permission fixing and ownership verification
+- Service status checks (Apache/MySQL/PHP-FPM)
+- System resource monitoring (memory, disk space)
+- Error log viewing (Apache, PHP, WordPress debug)
+- Plugin management (deactivate/reactivate/remove)
+- Database maintenance (repair, optimize, clean logs)
+- Redis troubleshooting
+- Debug mode toggle
+
+### Usage:
+```bash
+bash troubleshooting.sh
+```
+
+The script will:
+1. Scan for WordPress installations
+2. Present found sites in a numbered menu
+3. Provide interactive troubleshooting options
+
+### Example Workflow:
+1. Fix permissions and verify ownership
+2. Check service status and restart if needed
+3. Review error logs for specific issues
+4. Manage plugins if needed
+5. Optimize database performance
+
+For detailed troubleshooting instructions, see [INSTRUCTIONS.md](INSTRUCTIONS.md).
 
 ## Full Documentation
 
