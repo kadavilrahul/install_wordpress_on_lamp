@@ -61,26 +61,35 @@ MYSQL_SCRIPT
 
 # WordPress Setup
 echo "Setting up WordPress in subdirectory..."
-DB_NAME=$(echo "${MAIN_DOMAIN}_${WP_SUBDIR}" | tr '.' '_' | tr '-' '_')_db
-DB_USER=$(echo "${MAIN_DOMAIN}_${WP_SUBDIR}" | tr '.' '_' | tr '-' '_')_user
-DB_PASSWORD="$(echo "${MAIN_DOMAIN}_${WP_SUBDIR}" | tr '.' '_' | tr '-' '_')_2@"
+# Generate unique database name with timestamp
+TIMESTAMP=$(date +%s)
+DB_NAME="wp_$(echo "${MAIN_DOMAIN}_${WP_SUBDIR}" | tr '.' '_' | tr '-' '_')_${TIMESTAMP}"
+DB_USER="wp_$(echo "${MAIN_DOMAIN}_${WP_SUBDIR}" | tr '.' '_' | tr '-' '_')_user"
+DB_PASSWORD=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
 MAIN_DIR="/var/www/$MAIN_DOMAIN"
 WP_DIR="$MAIN_DIR/$WP_SUBDIR"
 
-# Create main domain directory and subdirectory
+# Create proper directory structure
 mkdir -p "$MAIN_DIR" || error_exit "Failed to create main directory"
 mkdir -p "$WP_DIR" || error_exit "Failed to create WordPress subdirectory"
+mkdir -p "$MAIN_DIR/logs" || error_exit "Failed to create logs directory"
+mkdir -p "$MAIN_DIR/backups" || error_exit "Failed to create backups directory"
 
 # Create a simple index.html for the main domain
 echo "<html><head><title>$MAIN_DOMAIN</title></head><body><h1>Welcome to $MAIN_DOMAIN</h1><p>Visit <a href='/$WP_SUBDIR'>WordPress Site</a></p></body></html>" > "$MAIN_DIR/index.html"
 
 # Create WordPress database and user
-mysql -u root -p"$DB_ROOT_PASSWORD" <<MYSQL_SCRIPT
+# Check if database exists first
+if mysql -u root -p"$DB_ROOT_PASSWORD" -e "USE $DB_NAME" 2>/dev/null; then
+    echo "Database $DB_NAME already exists. Using existing database."
+else
+    mysql -u root -p"$DB_ROOT_PASSWORD" <<MYSQL_SCRIPT || error_exit "Database creation failed"
 CREATE DATABASE $DB_NAME;
 CREATE USER '$DB_USER'@'%' IDENTIFIED WITH mysql_native_password BY '$DB_PASSWORD';
 GRANT ALL ON $DB_NAME.* TO '$DB_USER'@'%';
 FLUSH PRIVILEGES;
 MYSQL_SCRIPT
+fi
 
 # Download and setup WordPress
 wget -c http://wordpress.org/latest.tar.gz || error_exit "Failed to download WordPress"
@@ -97,9 +106,14 @@ sed -i "s/password_here/$DB_PASSWORD/" "$WP_DIR/wp-config.php"
 # Add WP_SITEURL and WP_HOME to wp-config.php for subdirectory configuration
 sed -i "/\/\* Add any custom values between this line and the \"stop editing\" line. \*\//a\define( 'WP_SITEURL', 'https://$MAIN_DOMAIN/$WP_SUBDIR' );\ndefine( 'WP_HOME', 'https://$MAIN_DOMAIN' );" "$WP_DIR/wp-config.php"
 
-# Set permissions
+# Set proper permissions
+find "$MAIN_DIR" -type d -exec chmod 755 {} \;
+find "$MAIN_DIR" -type f -exec chmod 644 {} \;
 chown -R www-data:www-data "$MAIN_DIR"
-chmod -R 755 "$MAIN_DIR"
+# Special permissions for uploads
+mkdir -p "$WP_DIR/wp-content/uploads"
+chmod 775 "$WP_DIR/wp-content/uploads"
+chown www-data:www-data "$WP_DIR/wp-content/uploads"
 
 # Create Apache Virtual Host configuration
 VHOST_FILE="/etc/apache2/sites-available/$MAIN_DOMAIN.conf"
@@ -218,6 +232,21 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule . /$WP_SUBDIR/index.php [L]
 </IfModule>
 # END WordPress
+
+# Additional security rules for subdirectory
+<FilesMatch "\.(engine|inc|info|install|module|profile|test|po|sh|.*sql|theme|tpl(\.php)?|xtmpl|svn-base)$|^(code-style\.pl|Entries.*|Repository|Root|Tag|Template|all-wcprops|entries|format)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Protect wp-config.php
+<files wp-config.php>
+    Order allow,deny
+    Deny from all
+</files>
+
+# Disable directory browsing
+Options -Indexes
 HTACCESS
 
 chown www-data:www-data "$WP_DIR/.htaccess"

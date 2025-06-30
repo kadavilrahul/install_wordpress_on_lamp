@@ -1,0 +1,7 @@
+File: main.sh
+Options which are tested OK
+1, 12, 13, 14,
+
+File: miscellaneous.sh
+Options which are tested OK
+6, 11

@@ -1,5 +1,27 @@
 #!/bin/bash
 
+# System Utilities
+function system_utilities() {
+    read -p "Swap size in GB (default: 2): " SWAP_SIZE; [[ -z "$SWAP_SIZE" ]] && SWAP_SIZE="2"
+    
+    confirm "Update system?" && { apt update && apt upgrade -y || warn "Update failed"; }
+    
+    if confirm "Install UFW firewall?"; then
+        apt install -y ufw && ufw --force enable && ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 3306 && success "UFW configured"
+    fi
+    
+    confirm "Install Fail2ban?" && { apt install -y fail2ban && systemctl enable fail2ban && systemctl start fail2ban && success "Fail2ban installed"; }
+    
+    if confirm "Setup ${SWAP_SIZE}GB swap?"; then
+        fallocate -l "${SWAP_SIZE}G" /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile && echo '/swapfile none swap sw 0 0' >> /etc/fstab && success "Swap created"
+    fi
+    
+    confirm "Install utilities (plocate, rclone, pv, rsync)?" && { apt install -y plocate rclone pv rsync && success "Utilities installed"; }
+    
+    success "System utilities configuration completed"
+    read -p "Press Enter to continue..."
+}
+
 # MySQL Utilities
 function show_databases {
     read -p "MySQL root password: " -s MYSQL_PWD
@@ -124,24 +146,92 @@ function grant_remote_access {
 
 # PHP Configuration
 function adjust_php_settings {
-    read -p "PHP version (e.g. 8.1): " PHP_VERSION
-    read -p "Memory limit (e.g. 512M): " MEMORY_LIMIT
-    read -p "Max execution time (e.g. 300): " MAX_EXECUTION_TIME
-    
-    for ini_type in cli apache2 fpm; do
-        ini_file="/etc/php/${PHP_VERSION}/${ini_type}/php.ini"
+    # Function to modify php.ini
+    modify_php_ini() {
+        local ini_file="$1"
+        echo "Modifying PHP INI file: $ini_file"
+
         if [ -f "$ini_file" ]; then
-            sed -i "s/^memory_limit = .*/memory_limit = ${MEMORY_LIMIT}/" "$ini_file"
-            sed -i "s/^max_execution_time = .*/max_execution_time = ${MAX_EXECUTION_TIME}/" "$ini_file"
-            echo "Updated ${ini_type} php.ini"
+            sed -i "s/^upload_max_filesize = .*/upload_max_filesize = 64M/" "$ini_file"
+            sed -i "s/^post_max_size = .*/post_max_size = 64M/" "$ini_file"
+            sed -i "s/^memory_limit = .*/memory_limit = 512M/" "$ini_file"
+            sed -i "s/^max_execution_time = .*/max_execution_time = 300/" "$ini_file"
+            sed -i "s/^max_input_time = .*/max_input_time = 300/" "$ini_file"
+        else
+            echo "Error: PHP INI file not found: $ini_file"
         fi
-    done
-    
-    if systemctl restart "php${PHP_VERSION}-fpm" 2>/dev/null; then
-        echo "PHP settings updated successfully."
-    else
-        echo "Failed to update PHP settings."
+    }
+
+    # Get PHP version
+    PHP_VERSION=$(php -v | head -n 1 | awk '{print $2}' | cut -d'.' -f1,2)
+    echo "Detected PHP version: ${PHP_VERSION}"
+
+    # Define possible php.ini paths
+    CLI_INI="/etc/php/${PHP_VERSION}/cli/php.ini"
+    APACHE_INI="/etc/php/${PHP_VERSION}/apache2/php.ini"
+    FPM_INI="/etc/php/${PHP_VERSION}/fpm/php.ini"
+
+    # Modify php.ini files
+    modify_php_ini "$CLI_INI"
+    modify_php_ini "$APACHE_INI"
+    modify_php_ini "$FPM_INI"
+
+    # Restart PHP-FPM if it's running
+    if systemctl is-active php${PHP_VERSION}-fpm > /dev/null 2>&1; then
+        echo "Restarting PHP-FPM..."
+        systemctl restart php${PHP_VERSION}-fpm
     fi
+
+    # Restart Apache if it's running
+    if systemctl is-active apache2 > /dev/null 2>&1; then
+        echo "Restarting Apache..."
+        systemctl restart apache2
+    fi
+
+    echo "PHP configuration completed!"
+    read -p "Press Enter to continue..."
+}
+
+# PHP Configuration
+function adjust_php_config {
+    local PHP_VERSION=$(php -v 2>/dev/null | head -n 1 | awk '{print $2}' | cut -d'.' -f1,2)
+    [ -z "$PHP_VERSION" ] && { echo "PHP not installed"; return 1; }
+
+    echo "Adjusting PHP $PHP_VERSION configuration..."
+    for ini in "/etc/php/$PHP_VERSION/cli/php.ini" "/etc/php/$PHP_VERSION/apache2/php.ini" "/etc/php/$PHP_VERSION/fpm/php.ini"; do
+        [ -f "$ini" ] && sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 64M/; s/^post_max_size = .*/post_max_size = 64M/; s/^memory_limit = .*/memory_limit = 512M/; s/^max_execution_time = .*/max_execution_time = 300/' "$ini"
+    done
+
+    systemctl restart apache2 php"$PHP_VERSION"-fpm 2>/dev/null || true
+    echo "PHP configuration updated"
+}
+
+# View PHP Information
+function view_php_info {
+    clear
+    echo "PHP Information"
+    echo
+    echo "1) Open in browser"
+    echo "2) Back to menu"
+    echo
+    read -p "Select option: " choice
+    
+    case $choice in
+        1)
+            if [ ! -f "/var/www/html/phpinfo.php" ]; then
+                echo "Creating phpinfo.php in /var/www/html..."
+                echo "<?php phpinfo(); ?>" > /var/www/html/phpinfo.php
+                chown www-data:www-data /var/www/html/phpinfo.php
+                chmod 644 /var/www/html/phpinfo.php
+            fi
+            SERVER_IP=$(hostname -I | awk '{print $1}')
+            xdg-open "http://${SERVER_IP}/phpinfo.php" || echo "Failed to open browser"
+            ;;
+        2) return ;;
+        *) echo "Invalid option"; sleep 1 ;;
+    esac
+    
+    read -p "Press Enter to continue..."
 }
 
 # PostgreSQL Backup
@@ -204,21 +294,33 @@ function backup_wordpress_site {
     fi
 }
 
-# SSH Security
+# SSH Security Management
 function toggle_root_ssh {
-    read -p "Enable or disable root SSH? (enable/disable): " ACTION
+    echo "1) Disable root SSH  2) Enable root SSH  3) Back"
+    read -p "Choose (1-3): " choice
     
-    if [ "$ACTION" = "disable" ]; then
-        sed -i 's/^PermitRootLogin yes/PermitRootLogin no/g' /etc/ssh/sshd_config
-    else
-        sed -i 's/^PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config
-    fi
-    
-    if systemctl restart ssh; then
-        echo "Root SSH access ${ACTION}d successfully."
-    else
-        echo "Failed to toggle root SSH access."
-    fi
+    case $choice in
+        1)
+            sed -i 's/^PermitRootLogin yes/PermitRootLogin no/g' /etc/ssh/sshd_config* 2>/dev/null
+            systemctl restart ssh
+            echo "Root SSH disabled successfully"
+            ;;
+        2)
+            sed -i 's/^PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config* 2>/dev/null
+            systemctl restart ssh
+            echo "Root SSH enabled successfully"
+            ;;
+        3)
+            return
+            ;;
+        *)
+            echo "Invalid option"
+            sleep 1
+            toggle_root_ssh
+            return
+            ;;
+    esac
+    read -p "Press Enter to continue..."
 }
 
 # Directory Selection
@@ -259,6 +361,8 @@ function main_menu {
         echo "8) Backup WordPress site"
         echo "9) Toggle root SSH access"
         echo "10) Select WordPress directory"
+        echo "11) View PHP Info"
+        echo "12) System Utilities"
         echo "q) Quit"
         read -p "Enter your choice: " choice
 
@@ -273,6 +377,8 @@ function main_menu {
             8) backup_wordpress_site ;;
             9) toggle_root_ssh ;;
             10) select_directory ;;
+            11) view_php_info ;;
+            12) system_utilities ;;
             q) exit 0 ;;
             *) echo "Invalid choice. Please try again." ;;
         esac

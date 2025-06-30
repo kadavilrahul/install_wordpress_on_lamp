@@ -1,14 +1,5 @@
 #!/bin/bash
 
-#=============================================================================
-# WordPress Master - Comprehensive WordPress Management Toolkit
-# Features:
-# - LAMP stack + WordPress installation
-# - Backup/Restore WordPress sites
-# - Backup/Restore PostgreSQL databases
-# - System utilities and security management
-# - Integrated with miscellaneous utilities
-#=============================================================================
 
 # Colors and globals
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -21,7 +12,19 @@ error() { log "ERROR" "$1"; echo -e "${RED}Error: $1${NC}" >&2; exit 1; }
 success() { log "SUCCESS" "$1"; echo -e "${GREEN}✓ $1${NC}"; }
 info() { log "INFO" "$1"; echo -e "${BLUE}ℹ $1${NC}"; }
 warn() { log "WARNING" "$1"; echo -e "${YELLOW}⚠ $1${NC}"; }
-confirm() { read -p "$(echo -e "${CYAN}$1 (y/n): ${NC}")" -n 1 -r; echo; [[ $REPLY =~ ^[Yy]$ ]]; }
+confirm() { read -p "$(echo -e "${CYAN}$1 [Y/n]: ${NC}")" -n 1 -r; echo; [[ -z "$REPLY" || $REPLY =~ ^[Yy]$ ]]; }
+# Main menu header
+show_header() {
+    clear
+    echo -e "${PURPLE}"
+    echo "============================================================================="
+    echo "                    WordPress Master Installation Tool"
+    echo "                   Comprehensive LAMP Stack Management"
+    echo "============================================================================="
+    echo -e "${NC}"
+    echo -e "${CYAN}Log file: $LOG_FILE${NC}"
+    echo
+}
 
 # System checks
 check_root() { [[ $EUID -ne 0 ]] && error "This script must be run as root (use sudo)"; }
@@ -34,35 +37,58 @@ check_system() {
 }
 
 # Configuration management
-# Removed miscellaneous.sh sourcing - all functions now in main.sh
-load_config() { [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE" && info "Configuration loaded"; }
+load_config() {
+    if [ -f "config.json" ]; then
+        ADMIN_EMAIL=$(jq -r '.admin_email // ""' config.json)
+        REDIS_MAX_MEMORY=$(jq -r '.redis_max_memory // "1"' config.json)
+        DB_ROOT_PASSWORD=$(jq -r '.mysql_root_password // ""' config.json)
+        
+        # Try to get first domain from each section
+        DOMAIN=$(jq -r '.main_domains[0] // ""' config.json)
+        [ -z "$DOMAIN" ] && DOMAIN=$(jq -r '.subdomains[0] // ""' config.json)
+        [ -z "$DOMAIN" ] && DOMAIN=$(jq -r '.subdirectories[0] // ""' config.json)
+        
+        info "Configuration loaded from config.json"
+    fi
+}
+
 save_config() {
-    cat > "$CONFIG_FILE" << EOF
-ADMIN_EMAIL="$ADMIN_EMAIL"
-REDIS_MAX_MEMORY="$REDIS_MAX_MEMORY"
-LAST_DOMAIN="$DOMAIN"
-LAST_INSTALL_DATE="$(date)"
-EOF
-    success "Configuration saved"
+    local temp_file=$(mktemp)
+    local domain_type="main_domains"
+    [[ "$DOMAIN" == *"."*"."* ]] && domain_type="subdomains"
+    [[ "$DOMAIN" == *"/"* ]] && domain_type="subdirectories"
+
+    # Create config.json if it doesn't exist
+    [ ! -f "config.json" ] && echo '{"main_domains":[],"subdomains":[],"subdirectories":[]}' > config.json
+
+    jq --arg email "$ADMIN_EMAIL" \
+       --arg redis "$REDIS_MAX_MEMORY" \
+       --arg pass "$DB_ROOT_PASSWORD" \
+       --arg domain "$DOMAIN" \
+       --arg type "$domain_type" \
+       '. + {
+           admin_email: $email,
+           redis_max_memory: $redis,
+           mysql_root_password: $pass
+       } | .[$type] = (.[$type] + [$domain] | unique)' \
+       config.json > "$temp_file" && mv "$temp_file" config.json
+    success "Configuration saved to config.json"
 }
 
 # Menu system
 show_menu() {
     clear
     echo -e "${CYAN}============================================================================="
-    echo "                    WordPress Master - Minimalistic Tool"
-    echo "=============================================================================${NC}"
+    echo "                            Website Master"
+    echo -e "=============================================================================${NC}"
     echo -e "${YELLOW}Main Menu:${NC}"
-    echo "  1) Install LAMP Stack + WordPress    2) Install Apache + SSL Only"
-    echo "  3) Install phpMyAdmin               4) Backup WordPress Sites"
-    echo "  5) Restore WordPress Sites          6) Backup PostgreSQL"
-    echo "  7) Restore PostgreSQL               8) Transfer Backups"
-    echo "  9) Adjust PHP Configuration         10) Configure Redis"
-    echo "  11) SSH Security Management         12) System Utilities"
-    echo "  13) Remove Websites & Databases     14) Remove Orphaned Databases"
-    echo "  15) Fix Apache Configs              16) Troubleshooting Guide"
-    echo "  17) MySQL Commands Guide            18) System Status Check"
-    echo "  19) Exit"
+    echo "  1) Install LAMP Stack + WordPress    2) Restore WordPress Sites"
+    echo "  3) Install Apache + SSL Only         4) Backup WordPress Sites"
+    echo "  5) Install phpMyAdmin                6) Backup PostgreSQL"
+    echo "  7) Restore PostgreSQL                8) Transfer Backups"
+    echo "  9) Configure Redis                  10) Remove Websites & Databases"
+    echo "  11) Remove Orphaned Databases       12) Fix Apache Configs"
+    echo "  13) System Status Check             14) Exit"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
@@ -70,26 +96,152 @@ show_menu() {
 get_inputs() {
     local type="$1"
     echo -e "${YELLOW}Installation Configuration:${NC}"
+    
+    # Parse domains from config.json by type
+    local main_domains=()
+    local subdomains=()
+    local subdirectories=()
+    if [ -f "config.json" ]; then
+        main_domains=($(jq -r '.main_domains[]?' config.json 2>/dev/null))
+        subdomains=($(jq -r '.subdomains[]?' config.json 2>/dev/null))
+        subdirectories=($(jq -r '.subdirectories[]?' config.json 2>/dev/null))
+    fi
+
     case $type in
-        "main") read -p "Enter domain (e.g., example.com): " DOMAIN; INSTALL_TYPE="main_domain" ;;
-        "subdomain") 
-            read -p "Enter main domain: " MAIN_DOMAIN
-            read -p "Enter subdomain: " SUBDOMAIN
-            DOMAIN="${SUBDOMAIN}.${MAIN_DOMAIN}"; INSTALL_TYPE="subdomain" ;;
+        "main")
+            if [ ${#main_domains[@]} -gt 0 ]; then
+                echo "Existing main domains:"
+                printf '%s\n' "${main_domains[@]}" | nl -w2 -s') '
+                read -p "Select domain (number) or enter new domain (e.g., example.com): " domain_choice
+                if [[ "$domain_choice" =~ ^[0-9]+$ ]]; then
+                    DOMAIN="${main_domains[$((domain_choice-1))]}"
+                    [ -z "$DOMAIN" ] && read -p "Enter domain (e.g., example.com): " DOMAIN
+                else
+                    DOMAIN="$domain_choice"
+                    # Validate main domain format (no subdomains or paths)
+                    while [[ "$DOMAIN" == *"."*"."* || "$DOMAIN" == *"/*" ]]; do
+                        warn "Main domain should be in format 'example.com' (no subdomains or paths)"
+                        read -p "Enter valid main domain: " DOMAIN
+                    done
+                fi
+            else
+                read -p "Enter domain (e.g., example.com): " DOMAIN
+            fi
+            INSTALL_TYPE="main_domain" ;;
+            
+        "subdomain")
+            # Find subdomains in config (format: sub.main.com)
+            local subdomain=""
+            local main_domain=""
+            for domain in "${config_domains[@]}"; do
+                if [[ "$domain" == *"."*"."* ]]; then
+                    subdomain=$(echo "$domain" | cut -d'.' -f1)
+                    main_domain=$(echo "$domain" | cut -d'.' -f2-)
+                    break
+                fi
+            done
+            
+            if [ ${#subdomains[@]} -gt 0 ]; then
+                echo "Existing subdomains:"
+                printf '%s\n' "${subdomains[@]}" | nl -w2 -s') '
+                read -p "Select subdomain (number) or enter new subdomain (format: sub.main.com): " subdomain_choice
+                
+                if [[ "$subdomain_choice" =~ ^[0-9]+$ ]]; then
+                    DOMAIN="${subdomains[$((subdomain_choice-1))]}"
+                    [ -z "$DOMAIN" ] && read -p "Enter subdomain (format: sub.main.com): " DOMAIN
+                else
+                    DOMAIN="$subdomain_choice"
+                    # Validate subdomain format (must have at least two dots)
+                    while [[ "$DOMAIN" != *"."*"."* ]]; do
+                        warn "Subdomain should be in format 'sub.example.com'"
+                        read -p "Enter valid subdomain: " DOMAIN
+                    done
+                fi
+            else
+                read -p "Enter subdomain (format: sub.main.com): " DOMAIN
+                # Validate subdomain format
+                while [[ "$DOMAIN" != *"."*"."* ]]; do
+                    warn "Subdomain should be in format 'sub.example.com'"
+                    read -p "Enter valid subdomain: " DOMAIN
+                done
+            fi
+            
+            # Extract main domain and subdomain from full domain
+            MAIN_DOMAIN=$(echo "$DOMAIN" | cut -d'.' -f2-)
+            SUBDOMAIN=$(echo "$DOMAIN" | cut -d'.' -f1)
+            DOMAIN="${SUBDOMAIN}.${MAIN_DOMAIN}"
+            INSTALL_TYPE="subdomain" ;;
+            
         "subdirectory")
-            read -p "Enter main domain: " MAIN_DOMAIN
-            read -p "Enter subdirectory: " WP_SUBDIR
-            DOMAIN="$MAIN_DOMAIN"; INSTALL_TYPE="subdirectory" ;;
+            # Check for existing subdirectory installations (format: domain/subdir)
+            local subdir_found=""
+            for domain in "${config_domains[@]}"; do
+                if [[ "$domain" == *"/"* ]]; then
+                    MAIN_DOMAIN=$(echo "$domain" | cut -d'/' -f1)
+                    WP_SUBDIR=$(echo "$domain" | cut -d'/' -f2)
+                    subdir_found="$domain"
+                    break
+                fi
+            done
+            
+            if [ ${#subdirectories[@]} -gt 0 ]; then
+                echo "Existing subdirectories:"
+                printf '%s\n' "${subdirectories[@]}" | nl -w2 -s') '
+                read -p "Select subdirectory (number) or enter new (format: domain.com/subdir): " subdir_choice
+                
+                if [[ "$subdir_choice" =~ ^[0-9]+$ ]]; then
+                    DOMAIN="${subdirectories[$((subdir_choice-1))]}"
+                    [ -z "$DOMAIN" ] && read -p "Enter subdirectory (format: domain.com/subdir): " DOMAIN
+                else
+                    DOMAIN="$subdir_choice"
+                    # Validate subdirectory format
+                    while [[ "$DOMAIN" != *"/"* ]]; do
+                        warn "Subdirectory should be in format 'domain.com/subdir'"
+                        read -p "Enter valid subdirectory: " DOMAIN
+                    done
+                fi
+            else
+                read -p "Enter subdirectory (format: domain.com/subdir): " DOMAIN
+                # Validate subdirectory format
+                while [[ "$DOMAIN" != *"/"* ]]; do
+                    warn "Subdirectory should be in format 'domain.com/subdir'"
+                    read -p "Enter valid subdirectory: " DOMAIN
+                done
+            fi
+            
+            # Extract main domain and subdirectory
+            MAIN_DOMAIN=$(echo "$DOMAIN" | cut -d'/' -f1)
+            WP_SUBDIR=$(echo "$DOMAIN" | cut -d'/' -f2)
+            
+            # Validate subdirectory name
+            while [[ "$WP_SUBDIR" == *"/"* || -z "$WP_SUBDIR" ]]; do
+                warn "Subdirectory cannot contain slashes or be empty"
+                read -p "Enter subdirectory (no slashes): " WP_SUBDIR
+            done
+            
+            DOMAIN="${MAIN_DOMAIN}/${WP_SUBDIR}"
+            INSTALL_TYPE="subdirectory" ;;
     esac
-    read -p "Enter admin email: " ADMIN_EMAIL
+    
+    # Use admin email from config if available
+    if [ -z "$ADMIN_EMAIL" ]; then
+        read -p "Enter admin email: " ADMIN_EMAIL
+    else
+        echo "Using admin email from config.json: $ADMIN_EMAIL"
+    fi
     echo -e "${CYAN}MySQL Password Setup:${NC}"
-    echo "Enter a password for MySQL root user (new installations) or your existing MySQL root password"
-    while true; do
-        read -sp "MySQL root password: " DB_ROOT_PASSWORD; echo
-        read -sp "Confirm password: " DB_ROOT_PASSWORD_CONFIRM; echo
-        [ "$DB_ROOT_PASSWORD" = "$DB_ROOT_PASSWORD_CONFIRM" ] && break
-        echo -e "${RED}Passwords do not match${NC}"
-    done
+    if [ -z "$DB_ROOT_PASSWORD" ]; then
+        echo "MySQL root password not found in config.json"
+        while true; do
+            read -sp "Enter MySQL root password: " DB_ROOT_PASSWORD; echo
+            read -sp "Confirm password: " DB_ROOT_PASSWORD_CONFIRM; echo
+            [ "$DB_ROOT_PASSWORD" = "$DB_ROOT_PASSWORD_CONFIRM" ] && break
+            echo -e "${RED}Passwords do not match${NC}"
+        done
+        save_config
+    else
+        echo "Using MySQL root password from config.json"
+    fi
     read -p "Enter Redis memory in GB (default: 1): " REDIS_MAX_MEMORY
     [[ -z "$REDIS_MAX_MEMORY" ]] && REDIS_MAX_MEMORY="1"
     confirm "Proceed with installation?" || return 1
@@ -143,10 +295,24 @@ install_wordpress() {
     chown -R www-data:www-data "$site_dir" && chmod -R 755 "$site_dir"
     
     # Database setup
-    DB_NAME=$(echo "$DOMAIN" | sed 's/\./_/g' | sed 's/-/_/g')
-    [ "$INSTALL_TYPE" = "subdirectory" ] && DB_NAME=$(echo "${MAIN_DOMAIN}_${WP_SUBDIR}" | sed 's/\./_/g' | sed 's/-/_/g')
-    DB_USER="${DB_NAME}_user"
-    DB_PASSWORD=$(openssl rand -base64 12)
+    # Generate unique database name based on installation type
+    case "$INSTALL_TYPE" in
+        "subdomain")
+            DB_NAME=$(echo "${SUBDOMAIN}_${MAIN_DOMAIN}" | tr '.' '_' | tr '-' '_')_db
+            DB_USER=$(echo "${SUBDOMAIN}_${MAIN_DOMAIN}" | tr '.' '_' | tr '-' '_')_user
+            DB_PASSWORD="$(echo "${SUBDOMAIN}_${MAIN_DOMAIN}" | tr '.' '_' | tr '-' '_')_2@"
+            ;;
+        "subdirectory")
+            DB_NAME=$(echo "${MAIN_DOMAIN}_${WP_SUBDIR}" | tr '.' '_' | tr '-' '_')_db
+            DB_USER=$(echo "${MAIN_DOMAIN}_${WP_SUBDIR}" | tr '.' '_' | tr '-' '_')_user
+            DB_PASSWORD="$(echo "${MAIN_DOMAIN}_${WP_SUBDIR}" | tr '.' '_' | tr '-' '_')_2@"
+            ;;
+        *)
+            DB_NAME=$(echo "$DOMAIN" | tr '.' '_' | tr '-' '_')_db
+            DB_USER=$(echo "$DOMAIN" | tr '.' '_' | tr '-' '_')_user
+            DB_PASSWORD="$(echo "$DOMAIN" | tr '.' '_' | tr '-' '_')_2@"
+            ;;
+    esac
     
     mysql $MYSQL_AUTH -e "CREATE DATABASE $DB_NAME; CREATE USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD'; GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost'; FLUSH PRIVILEGES;" || error "Database creation failed"
     
@@ -292,14 +458,53 @@ EOF
 
 # Complete WordPress installation
 install_lamp_wordpress() {
+    # Get domains by type for proper menu display
+    local main_domains=()
+    local subdomains=()
+    local subdirectories=()
+    if [ -f "config.json" ]; then
+        main_domains=($(jq -r '.main_domains[]?' config.json 2>/dev/null))
+        subdomains=($(jq -r '.subdomains[]?' config.json 2>/dev/null))
+        subdirectory_domains=($(jq -r '.subdirectory_domains[]?' config.json 2>/dev/null))
+    fi
+
     echo -e "${YELLOW}WordPress Installation Types:${NC}"
-    echo "1) Main Domain  2) Subdomain  3) Subdirectory  4) Back"
+    echo "1) Main Domain"
+    [ ${#main_domains[@]} -gt 0 ] && echo "   Existing main domains: ${main_domains[@]}"
+    echo "2) Subdomain"
+    [ ${#subdomains[@]} -gt 0 ] && echo "   Existing subdomains: ${subdomains[@]}"
+    echo "3) Subdirectory"
+    [ ${#subdirectory_domains[@]} -gt 0 ] && echo "   Existing subdirectories: ${subdirectory_domains[@]}"
+    echo "4) Back"
     read -p "Select type (1-4): " choice
     
     case $choice in
         1) get_inputs "main" || return ;;
         2) get_inputs "subdomain" || return ;;
-        3) get_inputs "subdirectory" || return ;;
+        3)
+            if [ ${#subdirectory_domains[@]} -gt 0 ]; then
+                echo "Existing subdirectories:"
+                for i in "${!subdirectory_domains[@]}"; do
+                    echo "$((i+1))) ${subdirectory_domains[$i]}"
+                done
+                read -p "Select subdirectory (1-${#subdirectory_domains[@]}) or enter new: " subdir_choice
+                if [[ $subdir_choice =~ ^[0-9]+$ ]] && [ $subdir_choice -le ${#subdirectory_domains[@]} ]; then
+                    DOMAIN="${subdirectory_domains[$((subdir_choice-1))]}"
+                    MAIN_DOMAIN="${DOMAIN%/*}"
+                    INSTALL_TYPE="subdirectory"
+                    install_lamp
+                    install_wordpress
+                    create_vhost_ssl "$MAIN_DOMAIN" "/var/www/$MAIN_DOMAIN"
+                    setup_tools "/var/www/$MAIN_DOMAIN"
+                    save_config
+                    success "WordPress installation completed for subdirectory $DOMAIN!"
+                    echo -e "${GREEN}Main Domain: $MAIN_DOMAIN${NC}"
+                    echo -e "${GREEN}Subdirectory: $DOMAIN${NC}"
+                    read -p "Press Enter to continue..."
+                    return
+                fi
+            fi
+            get_inputs "subdirectory" || return ;;
         4) return ;;
         *) echo -e "${RED}Invalid option${NC}"; sleep 2; install_lamp_wordpress; return ;;
     esac
@@ -322,27 +527,238 @@ install_lamp_wordpress() {
     read -p "Press Enter to continue..."
 }
 
-# Apache + SSL only installation
+
+#=============================================================================
+# APACHE AND SSL ONLY INSTALLATION
+#=============================================================================
+
 install_apache_ssl_only() {
-    read -p "Enter domain name: " DOMAIN
-    [ -z "$DOMAIN" ] && error "Domain name required"
+    show_header
+    echo -e "${YELLOW}Apache + SSL Only Installation${NC}"
+    echo "This will install Apache web server with SSL support for a new domain."
+    echo
     
-    apt update -qq && apt install -y apache2 certbot python3-certbot-apache || error "Installation failed"
+    setup_new_domain
+}
+
+setup_new_domain() {
+    # Get domain name for setup
+    if [ -z "$DOMAIN" ]; then
+        read -p "Enter your domain name: " DOMAIN
+        if [ -z "$DOMAIN" ]; then
+            echo "Error: Domain name required!"
+            read -p "Press Enter to continue..."
+            return
+        fi
+    else
+        echo "Using domain from config.json: $DOMAIN"
+    fi
+    save_config  # Save the domain to config.json
+    
+    echo ""
+    echo "Setting up $DOMAIN..."
+    
+    # Update and install packages
+    apt update -qq
+    apt install -y apache2 certbot python3-certbot-apache dig
+    
+    # Enable Apache modules
     a2enmod rewrite ssl
     
+    # Create web directory
     WEB_ROOT="/var/www/$DOMAIN"
-    mkdir -p "$WEB_ROOT" && chown -R www-data:www-data "$WEB_ROOT" && chmod -R 755 "$WEB_ROOT"
+    mkdir -p "$WEB_ROOT"
+    chown -R www-data:www-data "$WEB_ROOT"
+    chmod -R 755 "$WEB_ROOT"
     
-    cat > "$WEB_ROOT/index.html" << EOF
+    # Create sample page
+    cat > "$WEB_ROOT/index.html" << EOT
 <!DOCTYPE html>
-<html><head><title>Welcome to $DOMAIN</title>
-<style>body{font-family:Arial;margin:40px;background:#f4f4f4}.container{background:white;padding:40px;border-radius:10px;max-width:600px;margin:0 auto}</style>
-</head><body><div class="container"><h1>🎉 Welcome to $DOMAIN</h1><p>Your website is live and ready!</p></div></body></html>
-EOF
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to $DOMAIN</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f4f4f4; }
+        .container { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }
+        h1 { color: #333; text-align: center; }
+        .status { background: #e8f5e8; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center; }
+        .info { background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎉 Welcome to $DOMAIN</h1>
+        <div class="status">
+            <strong>✅ Your website is live and secure!</strong>
+        </div>
+        <div class="info">
+            <p><strong>Domain:</strong> $DOMAIN</p>
+            <p><strong>Status:</strong> Active with SSL certificate</p>
+            <p><strong>Server:</strong> Apache on Ubuntu</p>
+        </div>
+        <p>Your website is now ready for content. You can upload your files to replace this page.</p>
+        <hr>
+        <small>Generated by Domain Setup Script</small>
+    </div>
+</body>
+</html>
+EOT
     
-    create_vhost_ssl "$DOMAIN" "$WEB_ROOT"
-    success "Apache + SSL setup completed for $DOMAIN"
+    # Create Apache config
+    cat > "/etc/apache2/sites-available/$DOMAIN.conf" << EOT
+<VirtualHost *:80>
+    ServerName $DOMAIN
+    ServerAlias www.$DOMAIN
+    DocumentRoot $WEB_ROOT
+    DirectoryIndex index.html index.php
+    <Directory $WEB_ROOT>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    ErrorLog \${APACHE_LOG_DIR}/$DOMAIN-error.log
+    CustomLog \${APACHE_LOG_DIR}/$DOMAIN-access.log combined
+</VirtualHost>
+EOT
+    
+    # Enable site
+    a2ensite "$DOMAIN.conf"
+    systemctl reload apache2
+    
+    echo "✅ Domain created: http://$DOMAIN"
+    
+    # Check DNS and setup SSL
+    SERVER_IP=$(curl -4 -s ifconfig.me)
+    DOMAIN_IP=$(dig +short A $DOMAIN | head -1)
+    
+    echo ""
+    echo "Checking SSL setup..."
+    echo "Server IP: $SERVER_IP"
+    echo "Domain IP: $DOMAIN_IP"
+    
+    # Advanced SSL setup with conflict detection
+    setup_ssl_with_conflict_detection
+    
+    echo ""
+    echo "========================================="
+    echo "✅ SETUP COMPLETE!"
+    echo "========================================="
+    echo "Your website: $HTTPS_URL"
+    echo "Web files: $WEB_ROOT"
+    echo ""
+    if [[ "$HTTPS_URL" == "http://"* ]]; then
+        echo "Note: SSL failed. Check DNS points to $SERVER_IP"
+    fi
+    
     read -p "Press Enter to continue..."
+}
+
+# Advanced SSL setup with conflict detection (from original script)
+setup_ssl_with_conflict_detection() {
+    # Check for potentially conflicting sites
+    echo ""
+    echo "Checking for conflicting sites..."
+    
+    # Group sites by domain (combine HTTP and SSL versions)
+    DOMAIN_GROUPS=()
+    SITE_FILES=()
+    
+    for site in /etc/apache2/sites-enabled/*.conf; do
+        if [ -f "$site" ]; then
+            site_name=$(basename "$site")
+            # Skip the domain we're setting up
+            if [ "$site_name" != "$DOMAIN.conf" ] && [ "$site_name" != "$DOMAIN-le-ssl.conf" ]; then
+                # Extract domain name (remove .conf and -le-ssl suffix)
+                domain_name=$(echo "$site_name" | sed 's/-le-ssl\.conf$//' | sed 's/\.conf$//')
+                
+                # Check if this domain is already in our list
+                found=false
+                for existing_domain in "${DOMAIN_GROUPS[@]}"; do
+                    if [ "$existing_domain" = "$domain_name" ]; then
+                        found=true
+                        break
+                    fi
+                done
+                
+                if [ "$found" = false ]; then
+                    DOMAIN_GROUPS+=("$domain_name")
+                fi
+            fi
+        fi
+    done
+    
+    SITES_TO_DISABLE=()
+    if [ ${#DOMAIN_GROUPS[@]} -gt 0 ]; then
+        echo ""
+        echo "Found existing domains that might interfere with SSL setup:"
+        for i in "${!DOMAIN_GROUPS[@]}"; do
+            echo "$((i+1))) ${DOMAIN_GROUPS[i]}"
+        done
+        echo "$((${#DOMAIN_GROUPS[@]}+1))) Disable ALL domains"
+        echo "$((${#DOMAIN_GROUPS[@]}+2))) Continue without disabling any sites"
+        echo ""
+        read -p "Select domains to temporarily disable (e.g., 1 2) or press Enter to skip: " DISABLE_CHOICE
+        
+        if [ ! -z "$DISABLE_CHOICE" ]; then
+            # Check if user wants to disable all
+            if [ "$DISABLE_CHOICE" = "$((${#DOMAIN_GROUPS[@]}+1))" ]; then
+                echo "Disabling all domains..."
+                for domain in "${DOMAIN_GROUPS[@]}"; do
+                    SITES_TO_DISABLE+=("$domain.conf")
+                    SITES_TO_DISABLE+=("$domain-le-ssl.conf")
+                done
+            else
+                # Process individual selections
+                for num in $DISABLE_CHOICE; do
+                    if [[ "$num" =~ ^[0-9]+$ ]] && [ "$num" -ge 1 ] && [ "$num" -le ${#DOMAIN_GROUPS[@]} ]; then
+                        selected_domain="${DOMAIN_GROUPS[$((num-1))]}"
+                        # Add both HTTP and SSL versions of the domain to disable list
+                        SITES_TO_DISABLE+=("$selected_domain.conf")
+                        SITES_TO_DISABLE+=("$selected_domain-le-ssl.conf")
+                    fi
+                done
+            fi
+        fi
+    fi
+    
+    # Disable selected sites
+    if [ ${#SITES_TO_DISABLE[@]} -gt 0 ]; then
+        echo ""
+        echo "Temporarily disabling selected sites..."
+        for site in "${SITES_TO_DISABLE[@]}"; do
+            echo "Disabling $site"
+            a2dissite "$site" 2>/dev/null || true
+        done
+        systemctl reload apache2
+        sleep 2
+    fi
+    
+    # Try SSL certificate with fallback logic
+    echo ""
+    echo "Requesting SSL certificate..."
+    if certbot --apache -d "$DOMAIN" -d "www.$DOMAIN" --agree-tos --email "admin@$DOMAIN" --non-interactive --quiet; then
+        echo "✅ SSL certificate obtained!"
+        HTTPS_URL="https://$DOMAIN"
+    elif certbot --apache -d "$DOMAIN" --agree-tos --email "admin@$DOMAIN" --non-interactive --quiet; then
+        echo "✅ SSL certificate obtained (main domain only)!"
+        HTTPS_URL="https://$DOMAIN"
+    else
+        echo "⚠️  SSL failed - using HTTP only"
+        HTTPS_URL="http://$DOMAIN"
+    fi
+    
+    # Re-enable previously disabled sites
+    if [ ${#SITES_TO_DISABLE[@]} -gt 0 ]; then
+        echo ""
+        echo "Re-enabling previously disabled sites..."
+        for site in "${SITES_TO_DISABLE[@]}"; do
+            echo "Re-enabling $site"
+            a2ensite "$site" 2>/dev/null || true
+        done
+        systemctl reload apache2
+    fi
 }
 
 # phpMyAdmin installation
@@ -413,10 +829,17 @@ restore_wordpress() {
     # Step 1: Get MySQL credentials first
     if [ -z "$DB_ROOT_PASSWORD" ]; then
         echo -e "${CYAN}MySQL Authentication Required:${NC}"
-        read -sp "Enter MySQL root password: " DB_ROOT_PASSWORD; echo
-    fi
-    if ! mysql -u root -p"$DB_ROOT_PASSWORD" -e "SELECT 1;" 2>/dev/null; then
-        error "Invalid MySQL password or MySQL server not accessible."
+        while true; do
+            read -sp "Enter MySQL root password: " DB_ROOT_PASSWORD; echo
+            if mysql -u root -p"$DB_ROOT_PASSWORD" -e "SELECT 1;" 2>/dev/null; then
+                save_config  # Save the validated password
+                break
+            fi
+            echo -e "${RED}Invalid MySQL password${NC}"
+            DB_ROOT_PASSWORD=""
+        done
+    else
+        echo "Using MySQL root password from config.json"
     fi
     MYSQL_AUTH="-u root -p$DB_ROOT_PASSWORD"
 
@@ -627,41 +1050,6 @@ configure_redis() {
     read -p "Press Enter to continue..."
 }
 
-# SSH security management
-ssh_security_management() {
-    echo "1) Disable root SSH  2) Enable root SSH  3) Back"
-    read -p "Choose (1-3): " choice
-    
-    case $choice in
-        1) sed -i 's/^PermitRootLogin yes/PermitRootLogin no/g' /etc/ssh/sshd_config* 2>/dev/null; systemctl restart ssh; success "Root SSH disabled" ;;
-        2) sed -i 's/^PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config* 2>/dev/null; systemctl restart ssh; success "Root SSH enabled" ;;
-        3) return ;;
-        *) warn "Invalid option"; sleep 1; ssh_security_management; return ;;
-    esac
-    read -p "Press Enter to continue..."
-}
-
-# System utilities
-system_utilities() {
-    read -p "Swap size in GB (default: 2): " SWAP_SIZE; [[ -z "$SWAP_SIZE" ]] && SWAP_SIZE="2"
-    
-    confirm "Update system?" && { apt update && apt upgrade -y || warn "Update failed"; }
-    
-    if confirm "Install UFW firewall?"; then
-        apt install -y ufw && ufw --force enable && ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 3306 && success "UFW configured"
-    fi
-    
-    confirm "Install Fail2ban?" && { apt install -y fail2ban && systemctl enable fail2ban && systemctl start fail2ban && success "Fail2ban installed"; }
-    
-    if confirm "Setup ${SWAP_SIZE}GB swap?"; then
-        fallocate -l "${SWAP_SIZE}G" /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile && echo '/swapfile none swap sw 0 0' >> /etc/fstab && success "Swap created"
-    fi
-    
-    confirm "Install utilities (plocate, rclone, pv, rsync)?" && { apt install -y plocate rclone pv rsync && success "Utilities installed"; }
-    
-    success "System utilities configuration completed"
-    read -p "Press Enter to continue..."
-}
 
 # Website removal
 # Website removal with proper MySQL authentication and testing
@@ -1156,64 +1544,6 @@ EOF
     read -p "Press Enter to continue..."
 }
 
-# Troubleshooting guide
-show_troubleshooting_guide() {
-    clear
-    echo -e "${YELLOW}Troubleshooting Guide${NC}"
-    cat << 'EOF'
-
-1. WordPress admin fails to load:
-   wp plugin deactivate --all --allow-root --path=/var/www/your_site
-   rm -rf /var/www/your_site/wp-content/plugins/broken_plugin
-
-2. Check service status:
-   systemctl status apache2 mysql redis-server
-
-3. Check system resources:
-   free -h && df -h
-
-4. Check logs:
-   tail -n 20 /var/log/apache2/error.log
-   tail -n 20 /var/www/your_site/wp-content/debug.log
-
-5. Enable WordPress debug (add to wp-config.php):
-   define('WP_DEBUG', true);
-   define('WP_DEBUG_LOG', true);
-
-6. MySQL binary logs cleanup:
-   mysql -u root -p -e "RESET MASTER;"
-
-7. Redis connection errors:
-   rm /var/www/your_site/wp-content/object-cache.php
-EOF
-    read -p "Press Enter to continue..."
-}
-
-# MySQL commands guide
-mysql_commands_guide() {
-    clear
-    echo -e "${YELLOW}MySQL Commands Guide${NC}"
-    cat << 'EOF'
-
-Access MySQL: sudo mysql -u root -p
-Check databases: SHOW DATABASES;
-Check users: SELECT User FROM mysql.user;
-Login to database: mysql -u username -p database_name
-
-Check WordPress URLs:
-SELECT option_name, option_value FROM wp_options 
-WHERE option_name IN ('siteurl', 'home');
-
-Check database size:
-SELECT table_schema AS "Database",
-ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS "Size (MB)"
-FROM information_schema.tables
-WHERE table_schema = "database_name";
-
-Exit MySQL: EXIT;
-EOF
-    read -p "Press Enter to continue..."
-}
 
 # System status check
 system_status_check() {
@@ -1226,7 +1556,10 @@ system_status_check() {
     echo
     echo -e "${CYAN}=== Resource Usage ===${NC}"
     echo "Memory:"; free -h
-    echo "Disk:"; df -h | grep -E '^/dev/'
+    echo "Disk Usage:"
+    echo "-----------------------------------------------"
+    df -h --output=source,size,used,avail,pcent,target | awk 'NR==1 {print $1"    "$2"   "$3"   "$4"   "$5"   "$6} NR>1 && /^\/dev\// {printf "%-10s %5s %5s %5s %5s %s\n", $1, $2, $3, $4, $5, $6}'
+    echo "-----------------------------------------------"
     echo
     echo -e "${CYAN}=== Service Status ===${NC}"
     for service in apache2 mysql redis-server; do
@@ -1258,32 +1591,29 @@ main() {
     
     while true; do
         show_menu
-        read -p "Select option (1-19): " choice
+        read -p "Select option: " choice
         
         case $choice in
             1) install_lamp_wordpress ;;
-            2) install_apache_ssl_only ;;
-            3) install_phpmyadmin ;;
+            2) restore_wordpress ;;
+            3) install_apache_ssl_only ;;
             4) backup_wordpress ;;
-            5) restore_wordpress ;;
+            5) install_phpmyadmin ;;
             6) backup_postgresql ;;
             7) restore_postgresql ;;
             8) transfer_backups ;;
-            9) adjust_php_config ;;
-            10) configure_redis ;;
-            11) ssh_security_management ;;
-            12) system_utilities ;;
-            13) remove_websites_and_databases ;;
-            14) remove_orphaned_databases ;;
-            15) fix_all_apache_configs ;;
-            16) show_troubleshooting_guide ;;
-            17) mysql_commands_guide ;;
-            18) system_status_check ;;
-            19) echo -e "${GREEN}Thank you for using WordPress Master!${NC}"; exit 0 ;;
+            9) configure_redis ;;
+            10) remove_websites_and_databases ;;
+            11) remove_orphaned_databases ;;
+            12) fix_all_apache_configs ;;
+            13) system_status_check ;;
+            14) echo -e "${GREEN}Thank you for using WordPress Master!${NC}"; exit 0 ;;
             *) echo -e "${RED}Invalid option${NC}"; sleep 1 ;;
         esac
     done
 }
+
+
 
 # Start script
 [[ "${BASH_SOURCE[0]}" == "${0}" ]] && main "$@"
