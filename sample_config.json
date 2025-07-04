@@ -1,14 +1,21 @@
 {
+  "mysql_root_password": "YOUR_MYSQL_ROOT_PASSWORD",
+  "admin_email": "your-email@example.com",
+  "main_domains": [
+    "example.com"
+  ],
+  "subdomains": [
+    "sub.example.com"
+  ],
+  "subdirectory_domains": [
+    "example.com/subdirectory"
+  ],
   "rclone_remotes": [
     {
       "client_id": "YOUR_GOOGLE_DRIVE_API_CLIENT_ID",
       "client_secret": "YOUR_GOOGLE_DRIVE_API_CLIENT_SECRET",
-      "remote_name": "my_first_website"
-    },
-    {
-      "client_id": "YOUR_GOOGLE_DRIVE_API_CLIENT_ID",
-      "client_secret": "YOUR_GOOGLE_DRIVE_API_CLIENT_SECRET",
-      "remote_name": "my_second_website"
+      "remote_name": "server_backup"
     }
-  ]
+  ],
+  "redis_max_memory": "1"
 }

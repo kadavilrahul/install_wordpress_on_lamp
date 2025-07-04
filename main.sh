@@ -82,13 +82,13 @@ show_menu() {
     echo "                            Website Master"
     echo -e "=============================================================================${NC}"
     echo -e "${YELLOW}Main Menu:${NC}"
-    echo "  1) Install LAMP Stack + WordPress    2) Restore WordPress Sites"
-    echo "  3) Install Apache + SSL Only         4) Backup WordPress Sites"
-    echo "  5) Install phpMyAdmin                6) Backup PostgreSQL"
-    echo "  7) Restore PostgreSQL                8) Transfer Backups"
-    echo "  9) Configure Redis                  10) Remove Websites & Databases"
-    echo "  11) Remove Orphaned Databases       12) Fix Apache Configs"
-    echo "  13) System Status Check             14) Exit"
+    echo "  1) Install LAMP Stack + WordPress    2) Backup/Restore"
+    echo "  3) Install Apache + SSL Only         4) Miscellaneous Tools"
+    echo "  5) MySQL Remote Access               6) Troubleshooting"
+    echo "  7) Rclone Management                 8) Configure Redis"
+    echo "  9) Remove Websites & Databases      10) Remove Orphaned Databases"
+    echo "  11) Fix Apache Configs              12) System Status Check"
+    echo "  13) Exit"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
@@ -541,17 +541,73 @@ install_apache_ssl_only() {
     setup_new_domain
 }
 
+load_config() {
+    if [ -f "config.json" ]; then
+        MAIN_DOMAINS=$(jq -r '.main_domains[]?' config.json 2>/dev/null | tr '\n' ' ')
+        SUBDOMAINS=$(jq -r '.subdomains[]?' config.json 2>/dev/null | tr '\n' ' ')
+        SUBDIRECTORY_DOMAINS=$(jq -r '.subdirectory_domains[]?' config.json 2>/dev/null | tr '\n' ' ')
+        ADMIN_EMAIL=$(jq -r '.admin_email' config.json 2>/dev/null)
+    fi
+}
 setup_new_domain() {
-    # Get domain name for setup
-    if [ -z "$DOMAIN" ]; then
+    # Load available domains from config.json
+    load_config
+    
+    # Create selection menu for domains
+    echo "Available domains from config.json:"
+    echo "1) Main domains:"
+    local counter=1
+    declare -a domain_options
+    
+    # Add main domains
+    if [ -n "$MAIN_DOMAINS" ]; then
+        for domain in $MAIN_DOMAINS; do
+            echo "   $counter) $domain"
+            domain_options[$counter]="$domain"
+            ((counter++))
+        done
+    fi
+    
+    # Add subdomains
+    if [ -n "$SUBDOMAINS" ]; then
+        echo "2) Subdomains:"
+        for domain in $SUBDOMAINS; do
+            echo "   $counter) $domain"
+            domain_options[$counter]="$domain"
+            ((counter++))
+        done
+    fi
+    
+    # Add subdirectory domains
+    if [ -n "$SUBDIRECTORY_DOMAINS" ]; then
+        echo "3) Subdirectory domains:"
+        for domain in $SUBDIRECTORY_DOMAINS; do
+            echo "   $counter) $domain"
+            domain_options[$counter]="$domain"
+            ((counter++))
+        done
+    fi
+    
+    echo "   0) Enter custom domain"
+    echo ""
+    
+    # Get user selection
+    read -p "Select domain number: " selection
+    
+    if [ "$selection" = "0" ]; then
         read -p "Enter your domain name: " DOMAIN
         if [ -z "$DOMAIN" ]; then
             echo "Error: Domain name required!"
             read -p "Press Enter to continue..."
             return
         fi
+    elif [ -n "${domain_options[$selection]}" ]; then
+        DOMAIN="${domain_options[$selection]}"
+        echo "Selected: $DOMAIN"
     else
-        echo "Using domain from config.json: $DOMAIN"
+        echo "Invalid selection!"
+        read -p "Press Enter to continue..."
+        return
     fi
     save_config  # Save the domain to config.json
     
@@ -565,11 +621,24 @@ setup_new_domain() {
     # Enable Apache modules
     a2enmod rewrite ssl
     
-    # Create web directory
-    WEB_ROOT="/var/www/$DOMAIN"
+    # Determine web directory based on domain type
+    if [[ "$DOMAIN" == *"/"* ]]; then
+        # Subdirectory domain (e.g., silkroademart.com/new)
+        BASE_DOMAIN=$(echo "$DOMAIN" | cut -d'/' -f1)
+        SUBDIRECTORY=$(echo "$DOMAIN" | cut -d'/' -f2-)
+        WEB_ROOT="/var/www/$BASE_DOMAIN/$SUBDIRECTORY"
+        APACHE_DOMAIN="$BASE_DOMAIN"
+    else
+        # Regular domain or subdomain
+        WEB_ROOT="/var/www/$DOMAIN"
+        APACHE_DOMAIN="$DOMAIN"
+    fi
+    
     mkdir -p "$WEB_ROOT"
     chown -R www-data:www-data "$WEB_ROOT"
     chmod -R 755 "$WEB_ROOT"
+    
+    echo "Web directory created: $WEB_ROOT"
     
     # Create sample page
     cat > "$WEB_ROOT/index.html" << EOT
@@ -761,265 +830,17 @@ setup_ssl_with_conflict_detection() {
     fi
 }
 
-# phpMyAdmin installation
-install_phpmyadmin() {
-    read -p "Enter web directory (default: /var/www): " WP_DIR
-    [[ -z "$WP_DIR" ]] && WP_DIR="/var/www"
-    [ ! -d "$WP_DIR" ] && error "Directory $WP_DIR does not exist"
-    
-    export DEBIAN_FRONTEND=noninteractive
-    echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
-    echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2" | debconf-set-selections
-    
-    apt update -y && apt install -y phpmyadmin || error "phpMyAdmin installation failed"
-    ln -sf /usr/share/phpmyadmin "$WP_DIR/phpmyadmin"
-    a2enconf phpmyadmin && systemctl restart apache2
-    
-    success "phpMyAdmin installed! Access at: http://your-domain/phpmyadmin"
-    read -p "Press Enter to continue..."
-}
 
-# WordPress backup
-backup_wordpress() {
-    local WWW_PATH="/var/www"
-    local BACKUP_DIR="/website_backups"
-    local TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
-    
-    mkdir -p "$BACKUP_DIR" || error "Failed to create backup directory"
-    ! command -v wp &>/dev/null && setup_tools ""
-    
-    info "Starting WordPress backup process..."
-    local backup_count=0
-    
-    for site_dir in "$WWW_PATH"/*; do
-        [ ! -d "$site_dir" ] && continue
-        site_name=$(basename "$site_dir")
-        [ "$site_name" = "html" ] && continue
-        
-        if [ -f "$site_dir/wp-config.php" ]; then
-            info "Backing up $site_name..."
-            
-            # Database export
-            wp db export "$site_dir/${site_name}_db.sql" --path="$site_dir" --allow-root 2>/dev/null || warn "DB export failed for $site_name"
-            
-            # Create archive
-            pushd "$WWW_PATH" >/dev/null
-            tar --warning=no-file-changed -czf "$BACKUP_DIR/${site_name}_backup_${TIMESTAMP}.tar.gz" \
-                --exclude="$site_name/wp-content/cache" \
-                --exclude="$site_name/wp-content/wpo-cache" \
-                "$site_name" 2>/dev/null || warn "Backup failed for $site_name"
-            popd >/dev/null
-            
-            rm -f "$site_dir/${site_name}_db.sql"
-            ((backup_count++))
-            success "Backup completed for $site_name"
-        fi
-    done
-    
-    find "$BACKUP_DIR" -name "*.tar.gz" -mtime +7 -delete
-    [ $backup_count -eq 0 ] && warn "No WordPress sites found" || success "$backup_count sites backed up to $BACKUP_DIR"
-    read -p "Press Enter to continue..."
-}
 
-# WordPress restore
-restore_wordpress() {
-    local BACKUP_DIR="/website_backups"
-    local WWW_PATH="/var/www"
 
-    # Step 1: Get MySQL credentials first
-    if [ -z "$DB_ROOT_PASSWORD" ]; then
-        echo -e "${CYAN}MySQL Authentication Required:${NC}"
-        while true; do
-            read -sp "Enter MySQL root password: " DB_ROOT_PASSWORD; echo
-            if mysql -u root -p"$DB_ROOT_PASSWORD" -e "SELECT 1;" 2>/dev/null; then
-                save_config  # Save the validated password
-                break
-            fi
-            echo -e "${RED}Invalid MySQL password${NC}"
-            DB_ROOT_PASSWORD=""
-        done
-    else
-        echo "Using MySQL root password from config.json"
-    fi
-    MYSQL_AUTH="-u root -p$DB_ROOT_PASSWORD"
 
-    # Step 2: Select the backup file
-    ! command -v wp &>/dev/null && setup_tools ""
-    echo -e "${YELLOW}Available backups:${NC}"
-    readarray -t backup_files < <(find "$BACKUP_DIR" -name "*.tar.gz" -type f | sort -r)
-    [ ${#backup_files[@]} -eq 0 ] && { warn "No backups found in $BACKUP_DIR"; read -p "Press Enter..."; return; }
 
-    for i in "${!backup_files[@]}"; do
-        echo "[$((i+1))] $(basename "${backup_files[$i]}")"
-    done
-    read -p "Enter backup number: " backup_number
-    [[ ! "$backup_number" =~ ^[0-9]+$ ]] || [ "$backup_number" -lt 1 ] || [ "$backup_number" -gt ${#backup_files[@]} ] && error "Invalid backup number"
-    
-    local selected_backup="${backup_files[$((backup_number-1))]}"
-    
-    # Step 3: Get the target site name and original site name from archive
-    read -p "Enter the new domain/site name for the restored site: " TARGET_SITE
-    [ -z "$TARGET_SITE" ] && error "Target site name cannot be empty."
 
-    local original_site_name=$(tar -tf "$selected_backup" 2>/dev/null | head -n 1 | cut -f1 -d"/")
-    if [ -z "$original_site_name" ]; then
-        error "Could not determine root directory name from backup archive."
-    fi
-    info "Original site name in backup is '$original_site_name'."
 
-    # Step 4: Extract backup and rename directory
-    if [ -d "$WWW_PATH/$TARGET_SITE" ]; then
-        confirm "Site '$TARGET_SITE' already exists. Overwrite?" || { info "Cancelled."; return; }
-        rm -rf "$WWW_PATH/$TARGET_SITE"
-    fi
-    
-    # Remove old directory if it exists from a previous failed attempt
-    [ -d "$WWW_PATH/$original_site_name" ] && rm -rf "$WWW_PATH/$original_site_name"
-    
-    info "Restoring files from $(basename "$selected_backup")..."
-    if ! tar -xzf "$selected_backup" -C "$WWW_PATH"; then
-        error "Failed to extract backup archive."
-    fi
-    
-    # Rename the extracted folder to the target site name
-    if [ "$original_site_name" != "$TARGET_SITE" ]; then
-        info "Renaming '$WWW_PATH/$original_site_name' to '$WWW_PATH/$TARGET_SITE'..."
-        mv "$WWW_PATH/$original_site_name" "$WWW_PATH/$TARGET_SITE" || error "Failed to rename site directory."
-    fi
-    
-    local target_dir="$WWW_PATH/$TARGET_SITE"
-    if [ ! -d "$target_dir" ] || [ ! -f "$target_dir/wp-config.php" ]; then
-        error "Restored files are incomplete or wp-config.php is missing."
-    fi
-    
-    # Step 5: Read DB credentials from restored wp-config.php
-    info "Reading database credentials from restored wp-config.php..."
-    DB_NAME=$(grep "DB_NAME" "$target_dir/wp-config.php" | cut -d"'" -f4)
-    DB_USER=$(grep "DB_USER" "$target_dir/wp-config.php" | cut -d"'" -f4)
-    DB_PASSWORD=$(grep "DB_PASSWORD" "$target_dir/wp-config.php" | cut -d"'" -f4)
-    
-    if [ -z "$DB_NAME" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ]; then
-        error "Could not read database credentials from wp-config.php. Cannot proceed."
-    fi
-    success "Credentials found: DB: $DB_NAME, User: $DB_USER"
 
-    # Step 6: Create database and user
-    info "Re-creating database and user..."
-    mysql $MYSQL_AUTH -e "DROP DATABASE IF EXISTS \`$DB_NAME\`;"
-    mysql $MYSQL_AUTH -e "CREATE DATABASE \`$DB_NAME\`;" || error "Failed to create new database."
-    mysql $MYSQL_AUTH -e "DROP USER IF EXISTS '$DB_USER'@'localhost';"
-    mysql $MYSQL_AUTH -e "CREATE USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';" || error "Failed to create new user."
-    mysql $MYSQL_AUTH -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';"
-    mysql $MYSQL_AUTH -e "FLUSH PRIVILEGES;"
-    success "Database and user created successfully."
 
-    # Step 7: Import the database content
-    local db_dump_file=$(find "$target_dir" -maxdepth 1 -name "*_db.sql" -o -name "*.sql" | head -n 1)
 
-    if [ -z "$db_dump_file" ]; then
-        warn "No .sql file found in backup. Skipping database import."
-    else
-        info "Importing database from $(basename "$db_dump_file")..."
-        # Use wp-cli to import the database
-        wp db import "$db_dump_file" --path="$target_dir" --allow-root || error "Database import failed."
-        rm -f "$db_dump_file" # Clean up the sql file
-        success "Database imported successfully."
-    fi
 
-    # Step 8: Update domain in database if it changed
-    if [ "$original_site_name" != "$TARGET_SITE" ]; then
-        info "Updating domain in database from '$original_site_name' to '$TARGET_SITE'..."
-        wp search-replace "$original_site_name" "$TARGET_SITE" --all-tables --skip-columns=guid --path="$target_dir" --allow-root
-        success "Domain updated in database."
-    fi
-
-    # Step 9: Fix file permissions and clean up
-    rm -f "$target_dir/wp-content/object-cache.php" "$target_dir/wp-content/advanced-cache.php"
-    check_maintenance_file "$target_dir"
-    
-    rm -f "$target_dir/.maintenance" # Remove maintenance file
-    
-    info "Setting secure file and directory permissions..."
-    set_wordpress_permissions "$target_dir"
-    
-    if [ -f "$target_dir/.maintenance" ]; then
-        warn "Failed to remove maintenance file. Your site might be stuck in maintenance mode."
-    else
-        success "Maintenance file removed."
-    fi
-    # Step 10: Set up Apache and SSL
-    info "Setting up Apache virtual host and SSL for $TARGET_SITE..."
-    read -p "Enter admin email for SSL certificate: " ADMIN_EMAIL
-    create_vhost_ssl "$TARGET_SITE" "$target_dir"
-
-    success "Restoration completed for $TARGET_SITE"
-    read -p "Press Enter to continue..."
-}
-
-# PostgreSQL backup
-backup_postgresql() {
-    read -p "Database name (default: your_db): " DB_NAME; [[ -z "$DB_NAME" ]] && DB_NAME="your_db"
-    read -p "Database user (default: your_user): " DB_USER; [[ -z "$DB_USER" ]] && DB_USER="your_user"
-    
-    local BACKUP_DIR="/website_backups/postgres"
-    mkdir -p "$BACKUP_DIR" && chown postgres:postgres "$BACKUP_DIR" && chmod 700 "$BACKUP_DIR"
-    
-    ! command -v psql &>/dev/null && { apt update -y && apt install -y postgresql postgresql-contrib || error "PostgreSQL installation failed"; }
-    systemctl start postgresql && systemctl enable postgresql
-    
-    local timestamp=$(date '+%Y%m%d_%H%M%S')
-    sudo -u postgres pg_dump -Fc "$DB_NAME" -f "$BACKUP_DIR/${DB_NAME}_${timestamp}.dump" || error "Backup failed"
-    find "$BACKUP_DIR" -name "*.dump" -mtime +30 -delete
-    
-    success "PostgreSQL backup completed: $BACKUP_DIR/${DB_NAME}_${timestamp}.dump"
-    read -p "Press Enter to continue..."
-}
-
-# PostgreSQL restore
-restore_postgresql() {
-    read -p "Database name (default: your_db): " DB_NAME; [[ -z "$DB_NAME" ]] && DB_NAME="your_db"
-    read -p "Database user (default: your_user): " DB_USER; [[ -z "$DB_USER" ]] && DB_USER="your_user"
-    read -sp "Database password: " DB_PASS; echo
-    
-    local BACKUP_DIR="/website_backups/postgres"
-    local DUMP_FILE=$(find "$BACKUP_DIR" -name "*.dump" -type f -printf '%T+ %p\n' 2>/dev/null | sort -r | head -n 1 | awk '{print $2}')
-    
-    [ -z "$DUMP_FILE" ] && { warn "No dump file found in $BACKUP_DIR"; read -p "Press Enter..."; return; }
-    info "Using backup: $DUMP_FILE"
-    
-    ! command -v psql &>/dev/null && { apt update -y && apt install -y postgresql postgresql-contrib || error "PostgreSQL installation failed"; }
-    systemctl start postgresql && systemctl enable postgresql
-    
-    sudo -u postgres psql << EOF
-DROP DATABASE IF EXISTS $DB_NAME;
-CREATE DATABASE $DB_NAME;
-DROP ROLE IF EXISTS $DB_USER;
-CREATE ROLE $DB_USER WITH LOGIN CREATEDB CREATEROLE PASSWORD '$DB_PASS';
-GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
-EOF
-    
-    sudo -u postgres pg_restore --clean --if-exists -d "$DB_NAME" "$DUMP_FILE" || warn "Some restore warnings occurred"
-    success "PostgreSQL restoration completed"
-    read -p "Press Enter to continue..."
-}
-
-# Transfer backups
-transfer_backups() {
-    read -p "Are you on the source server? (yes/no): " ON_SOURCE
-    [[ "$ON_SOURCE" != "yes" ]] && { warn "Run this on the source server"; read -p "Press Enter..."; return; }
-    
-    read -p "Enter destination IP: " DEST_IP
-    [ -z "$DEST_IP" ] && error "Destination IP required"
-    
-    local SOURCE_DIR="/website_backups"
-    [ ! -d "$SOURCE_DIR" ] && error "Source backup directory does not exist"
-    
-    ssh root@"$DEST_IP" "mkdir -p /website_backups" || error "Failed to create destination directory"
-    rsync -avz --progress "$SOURCE_DIR/" root@"$DEST_IP":"/website_backups" || error "Transfer failed"
-    
-    success "Backup transfer completed to $DEST_IP"
-    read -p "Press Enter to continue..."
-}
 
 # PHP configuration
 adjust_php_config() {
@@ -1595,19 +1416,18 @@ main() {
         
         case $choice in
             1) install_lamp_wordpress ;;
-            2) restore_wordpress ;;
+            2) bash backup_restore.sh ;;
             3) install_apache_ssl_only ;;
-            4) backup_wordpress ;;
-            5) install_phpmyadmin ;;
-            6) backup_postgresql ;;
-            7) restore_postgresql ;;
-            8) transfer_backups ;;
-            9) configure_redis ;;
-            10) remove_websites_and_databases ;;
-            11) remove_orphaned_databases ;;
-            12) fix_all_apache_configs ;;
-            13) system_status_check ;;
-            14) echo -e "${GREEN}Thank you for using WordPress Master!${NC}"; exit 0 ;;
+            4) bash miscellaneous.sh ;;
+            5) bash mysql_remote.sh ;;
+            6) bash troubleshooting.sh ;;
+            7) bash rclone.sh ;;
+            8) configure_redis ;;
+            9) remove_websites_and_databases ;;
+            10) remove_orphaned_databases ;;
+            11) fix_all_apache_configs ;;
+            12) system_status_check ;;
+            13) echo -e "${GREEN}Thank you for using WordPress Master!${NC}"; exit 0 ;;
             *) echo -e "${RED}Invalid option${NC}"; sleep 1 ;;
         esac
     done

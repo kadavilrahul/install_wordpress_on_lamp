@@ -1,7 +1,5 @@
-File: main.sh
+File: ALL
 Options which are tested OK
-1, 12, 13, 14,
+ALL 
 
-File: miscellaneous.sh
-Options which are tested OK
-6, 11
+Testing need to be done.

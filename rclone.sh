@@ -47,17 +47,18 @@ uninstall_rclone_package() {
         info "Uninstallation cancelled."
         return
     fi
+
     info "Removing all rclone-related cron jobs..."
-    crontab -l 2>/dev/null | grep -v "/usr/bin/rclone" | crontab -
+    crontab -l 2>/dev/null | grep -v "/usr/bin/rclone" | crontab - || warn "Failed to remove cron jobs."
 
     info "Deleting all rclone configurations..."
-    rm -rf "$HOME/.config/rclone"
+    rm -rf "$HOME/.config/rclone" || warn "Failed to delete rclone configurations."
 
     info "Purging rclone package..."
-    apt-get remove --purge -y rclone
+    apt-get remove --purge -y rclone || error "Failed to uninstall rclone."
+
     success "rclone has been completely uninstalled from the system."
 }
-
 
 # === Remote-Specific Functions ===
 
@@ -65,7 +66,12 @@ select_remote() {
     info "Loading remotes from $CONFIG_FILE"
     [ ! -f "$CONFIG_FILE" ] && error "Configuration file not found: $CONFIG_FILE"
 
-    local num_remotes=$(jq '.rclone_remotes | length' "$CONFIG_FILE")
+    # Check if config file is valid JSON
+    if ! jq empty "$CONFIG_FILE" 2>/dev/null; then
+        error "Invalid JSON in configuration file: $CONFIG_FILE"
+    fi
+
+    local num_remotes=$(jq '.rclone_remotes | length' "$CONFIG_FILE" 2>/dev/null)
     [ "$num_remotes" -eq 0 ] && error "No remotes defined in 'rclone_remotes' array."
 
     echo -e "${YELLOW}Please select a remote to manage:${NC}"
@@ -85,15 +91,30 @@ select_remote() {
         CLIENT_SECRET=$(jq -r ".rclone_remotes[$index].client_secret" "$CONFIG_FILE")
         REMOTE_NAME=$(jq -r ".rclone_remotes[$index].remote_name" "$CONFIG_FILE")
         LOG_FILE="$LOG_DIR/rclone_${REMOTE_NAME}.log"
-        [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] && error "Selected remote is missing credentials."
+        
+        # Check for null/empty values
+        if [[ -z "$CLIENT_ID" || "$CLIENT_ID" == "null" || -z "$CLIENT_SECRET" || "$CLIENT_SECRET" == "null" ]]; then
+            error "Selected remote is missing credentials."
+        fi
         return 0 # Success
     else
         error "Invalid selection."
     fi
 }
+
 configure_remote() {
     info "Starting automated rclone configuration for '$REMOTE_NAME'"
     warn "A browser is required for Google authentication. Copy the link rclone provides."
+
+    # Check if remote already exists
+    if rclone listremotes | grep -q "$REMOTE_NAME:"; then
+        warn "Remote '$REMOTE_NAME' already exists. This will overwrite it."
+        read -p "Continue? (y/n) " -n 1 -r; echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            info "Configuration cancelled."
+            return
+        fi
+    fi
 
     rclone config create "$REMOTE_NAME" drive \
         client_id="$CLIENT_ID" client_secret="$CLIENT_SECRET" \
@@ -106,25 +127,39 @@ configure_remote() {
     fi
 }
 
-
 check_sizes() {
-    info "Checking local backup size at '$BACKUP_SOURCE'";
-    [ -d "$BACKUP_SOURCE" ] && du -sh "$BACKUP_SOURCE" || warn "Directory not found."
-    info "Checking total size of remote '$REMOTE_NAME:'";
-    rclone size "$REMOTE_NAME:"
+    info "Checking local backup size at '$BACKUP_SOURCE'"
+    if [ -d "$BACKUP_SOURCE" ]; then
+        du -sh "$BACKUP_SOURCE"
+    else
+        warn "Directory not found: $BACKUP_SOURCE"
+    fi
+    
+    info "Checking total size of remote '$REMOTE_NAME:'"
+    if ! rclone size "$REMOTE_NAME:" 2>/dev/null; then
+        error "Failed to check remote size. Is the remote properly configured?"
+    fi
 }
-
 
 restore_with_browse() {
     info "Interactive restore from '$REMOTE_NAME:'"
+    
+    # Test if remote is accessible
+    if ! rclone lsf "$REMOTE_NAME:" &>/dev/null; then
+        error "Cannot access remote '$REMOTE_NAME:'. Please check configuration."
+    fi
+    
     local current_path="" # Represents path within the remote, e.g., "dir1/subdir"
 
     while true; do
         # Construct the full path for rclone. Add a trailing slash if path is not empty.
         local rclone_path="$REMOTE_NAME:${current_path:+$current_path/}"
         
-        # Get combined list of files and directories
-        mapfile -t items < <(rclone lsf "$rclone_path")
+        # Get combined list of files and directories with error handling
+        local items=()
+        if ! mapfile -t items < <(rclone lsf "$rclone_path" 2>/dev/null); then
+            error "Failed to list contents of $rclone_path"
+        fi
         
         # Separate files and dirs
         local dirs=()
@@ -140,14 +175,24 @@ restore_with_browse() {
         
         local i=1
         echo -e "${BLUE}--- Directories ---${NC}"
-        if [ ${#dirs[@]} -eq 0 ]; then echo "  (No directories)"; else
-            for dir in "${dirs[@]}"; do echo "  $i) $dir"; i=$((i+1)); done
+        if [ ${#dirs[@]} -eq 0 ]; then 
+            echo "  (No directories)"
+        else
+            for dir in "${dirs[@]}"; do 
+                echo "  $i) $dir"
+                i=$((i+1))
+            done
         fi
 
         echo -e "\n${BLUE}--- Files ---${NC}"
         local file_start_index=$i
-        if [ ${#files[@]} -eq 0 ]; then echo "  (No files)"; else
-            for file in "${files[@]}"; do echo "  $i) $file"; i=$((i+1)); done
+        if [ ${#files[@]} -eq 0 ]; then 
+            echo "  (No files)"
+        else
+            for file in "${files[@]}"; do 
+                echo "  $i) $file"
+                i=$((i+1))
+            done
         fi
         
         echo -e "${CYAN}----------------------------------------------------------------------${NC}"
@@ -189,43 +234,85 @@ restore_with_browse() {
     info "Select files to restore from '${YELLOW}$rclone_path${NC}'"
 
     local i=1
-    for file in "${files[@]}"; do echo "  $i) $file"; i=$((i+1)); done
+    for file in "${files[@]}"; do 
+        echo "  $i) $file"
+        i=$((i+1))
+    done
 
     read -p "Enter file numbers (e.g. '1 3-5'), 'all', or 'q' to cancel: " selection
-    if [[ "$selection" == "q" || -z "$selection" ]]; then info "Cancelled."; return; fi
+    if [[ "$selection" == "q" || -z "$selection" ]]; then 
+        info "Cancelled."
+        return
+    fi
 
     local files_to_restore=()
     if [[ "$selection" == "all" ]]; then
         files_to_restore=("${files[@]}")
     else
+        # Clean up selection input
         selection=$(echo "$selection" | sed -e 's/ ,/,/g' -e 's/, / /g' -e 's/,/ /g')
         for part in $selection; do
             if [[ "$part" =~ ^([0-9]+)-([0-9]+)$ ]]; then
-                for i in $(seq "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"); do
-                    [ "$i" -ge 1 ] && [ "$i" -le "${#files[@]}" ] && ! (printf '%s\n' "${files_to_restore[@]}" | grep -q -x "${files[i-1]}") && files_to_restore+=("${files[i-1]}")
+                local start=${BASH_REMATCH[1]}
+                local end=${BASH_REMATCH[2]}
+                for i in $(seq "$start" "$end"); do
+                    if [ "$i" -ge 1 ] && [ "$i" -le "${#files[@]}" ]; then
+                        local file="${files[i-1]}"
+                        # Check if file not already in array
+                        if ! printf '%s\n' "${files_to_restore[@]}" | grep -q -x "$file"; then
+                            files_to_restore+=("$file")
+                        fi
+                    fi
                 done
             elif [[ "$part" =~ ^[0-9]+$ ]]; then
-                [ "$part" -ge 1 ] && [ "$part" -le "${#files[@]}" ] && ! (printf '%s\n' "${files_to_restore[@]}" | grep -q -x "${files[part-1]}") && files_to_restore+=("${files[part-1]}")
+                if [ "$part" -ge 1 ] && [ "$part" -le "${#files[@]}" ]; then
+                    local file="${files[part-1]}"
+                    # Check if file not already in array
+                    if ! printf '%s\n' "${files_to_restore[@]}" | grep -q -x "$file"; then
+                        files_to_restore+=("$file")
+                    fi
+                fi
             fi
         done
     fi
 
-    if [ ${#files_to_restore[@]} -eq 0 ]; then warn "No valid files selected."; return; fi
+    if [ ${#files_to_restore[@]} -eq 0 ]; then 
+        warn "No valid files selected."
+        return
+    fi
 
     info "The following files will be restored to '$BACKUP_SOURCE':"
-    for file in "${files_to_restore[@]}"; do echo -e "  - ${CYAN}$file${NC}"; done
-    read -p "Proceed? (y/n) " -n 1 -r; echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then info "Restore cancelled."; return; fi
-
-    mkdir -p "$BACKUP_SOURCE"
-    for file in "${files_to_restore[@]}"; do
-        rclone copy -v "$rclone_path$file" "$BACKUP_SOURCE" --progress
+    for file in "${files_to_restore[@]}"; do 
+        echo -e "  - ${CYAN}$file${NC}"
     done
-    success "Restore completed."
+    
+    read -p "Proceed? (y/n) " -n 1 -r; echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then 
+        info "Restore cancelled."
+        return
+    fi
+
+    # Create backup directory if it doesn't exist
+    mkdir -p "$BACKUP_SOURCE" || error "Failed to create backup directory: $BACKUP_SOURCE"
+    
+    # Restore files
+    local failed_files=()
+    for file in "${files_to_restore[@]}"; do
+        info "Restoring: $file"
+        if ! rclone copy -v "$rclone_path$file" "$BACKUP_SOURCE" --progress; then
+            failed_files+=("$file")
+        fi
+    done
+    
+    if [ ${#failed_files[@]} -eq 0 ]; then
+        success "All files restored successfully."
+    else
+        warn "Some files failed to restore:"
+        for file in "${failed_files[@]}"; do
+            echo -e "  - ${RED}$file${NC}"
+        done
+    fi
 }
-
-
-
 
 # === Menu System ===
 
