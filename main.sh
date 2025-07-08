@@ -231,7 +231,7 @@ get_inputs() {
     fi
     echo -e "${CYAN}MySQL Password Setup:${NC}"
     if [ -z "$DB_ROOT_PASSWORD" ]; then
-        echo "MySQL root password not found in config.json"
+        echo "Enter MySQL root password manually"
         while true; do
             read -sp "Enter MySQL root password: " DB_ROOT_PASSWORD; echo
             read -sp "Confirm password: " DB_ROOT_PASSWORD_CONFIRM; echo
