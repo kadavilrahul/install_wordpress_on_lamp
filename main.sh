@@ -1158,6 +1158,7 @@ remove_orphaned_databases() {
     
     if [ ${#orphaned_dbs[@]} -eq 0 ]; then
         success "No orphaned databases found"
+        read -p "Press Enter to continue..."
         return
     fi
     
@@ -1192,9 +1193,11 @@ remove_orphaned_databases() {
         for i in "${!orphaned_dbs[@]}"; do
             remove_single_database "${orphaned_dbs[i]}" "${orphaned_users[i]}"
         done
+        read -p "Press Enter to continue..."
         success "All orphaned databases removed"
     else
         if [[ ! "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt ${#orphaned_dbs[@]} ]; then
+            read -p "Press Enter to continue..."
             warn "Invalid selection"
             return
         fi
@@ -1211,6 +1214,7 @@ remove_orphaned_databases() {
         read -p "Type 'DELETE' to confirm removal: " confirm
         [ "$confirm" != "DELETE" ] && { warn "Cancelled"; return; }
         
+        read -p "Press Enter to continue..."
         remove_single_database "$selected_db" "$selected_user"
     fi
 }
