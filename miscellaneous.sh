@@ -174,10 +174,9 @@ function view_php_info() {
     clear
     echo "PHP Information"
     echo "==============="
-    echo "1) Create phpinfo.php and show URL"
-    echo "2) Show PHP version and modules"
-    echo "3) Back to menu"
-    echo
+    echo "  1) Create phpinfo.php and show URL - Generate phpinfo() page accessible via web browser"
+    echo "  2) Show PHP version and modules - Display PHP version and installed extensions"
+    echo "  0) Back to menu - Return to main miscellaneous menu"
     read -p "Select option: " choice
     
     case $choice in
@@ -198,7 +197,7 @@ function view_php_info() {
             echo "Installed PHP modules:"
             php -m
             ;;
-        3) 
+        0) 
             return 
             ;;
         *) 
@@ -217,15 +216,14 @@ function disk_space_monitor() {
     clear
     echo "Disk Space Monitoring"
     echo "===================="
-    echo "1) Show disk usage summary"
-    echo "2) Show largest directories"
-    echo "3) Show largest files"
-    echo "4) Clean system logs"
-    echo "5) Clean package cache"
-    echo "6) Clean temporary files"
-    echo "7) Full system cleanup"
-    echo "8) Back to menu"
-    echo
+    echo "  1) Show disk usage summary - Display disk usage, memory, and inode information"
+    echo "  2) Show largest directories - Find directories consuming most disk space"
+    echo "  3) Show largest files - Find files consuming most disk space"
+    echo "  4) Clean system logs - Remove old log files and truncate large logs"
+    echo "  5) Clean package cache - Clear apt cache and remove unused packages"
+    echo "  6) Clean temporary files - Remove old temporary and cache files"
+    echo "  7) Full system cleanup - Perform all cleanup operations at once"
+    echo "  0) Back to menu - Return to main miscellaneous menu"
     read -p "Select option: " choice
     
     case $choice in
@@ -236,7 +234,7 @@ function disk_space_monitor() {
         5) clean_package_cache ;;
         6) clean_temp_files ;;
         7) full_system_cleanup ;;
-        8) return ;;
+        0) return ;;
         *)
             echo "Invalid option"
             sleep 1
@@ -418,12 +416,11 @@ function full_system_cleanup() {
 function toggle_root_ssh() {
     echo "SSH Root Access Management"
     echo "=========================="
-    echo "1) Disable root SSH login"
-    echo "2) Enable root SSH login"
-    echo "3) Show current status"
-    echo "4) Back to menu"
-    echo
-    read -p "Choose (1-4): " choice
+    echo "  1) Disable root SSH login - Prevent root user from accessing server via SSH"
+    echo "  2) Enable root SSH login - Allow root user to access server via SSH (less secure)"
+    echo "  3) Show current status - Display current SSH root login configuration"
+    echo "  0) Back to menu - Return to main miscellaneous menu"
+    read -p "Choose (0-3): " choice
     
     case $choice in
         1)
@@ -443,7 +440,7 @@ function toggle_root_ssh() {
             echo "Current SSH configuration:"
             grep -E "^#*PermitRootLogin" /etc/ssh/sshd_config || echo "PermitRootLogin not explicitly set (default: prohibit-password)"
             ;;
-        4)
+        0)
             return
             ;;
         *)
@@ -464,22 +461,16 @@ function main_menu() {
         echo "=================================="
         echo "    Server Management Script"
         echo "=================================="
-        echo "MySQL Utilities:"
-        echo "1) Show MySQL databases"
-        echo "2) List MySQL users"
-        echo "3) Get database size"
-        echo
-        echo "PHP Management:"
-        echo "4) Adjust PHP settings"
-        echo "5) View PHP Info"
-        echo
-        echo "System Management:"
-        echo "6) Disk space monitoring & cleanup"
-        echo "7) Toggle root SSH access"
-        echo "8) Install phpMyAdmin"
-        echo "9) System Utilities"
-        echo
-        echo "q) Quit"
+        echo "  1) Show MySQL databases - Display all databases in MySQL server"
+        echo "  2) List MySQL users - Show all MySQL user accounts and hosts"
+        echo "  3) Get database size - Check storage usage of specific database"
+        echo "  4) Adjust PHP settings - Optimize PHP configuration for web apps"
+        echo "  5) View PHP Info - Display PHP version and configuration details"
+        echo "  6) Disk space monitoring & cleanup - Monitor storage usage and clean system files"
+        echo "  7) Toggle root SSH access - Enable or disable SSH root login access"
+        echo "  8) Install phpMyAdmin - Set up web-based MySQL administration tool"
+        echo "  9) System Utilities - Install common system tools and utilities"
+        echo "  0) Quit - Exit the server management script"
         echo "=================================="
         read -p "Enter your choice: " choice
 
@@ -493,7 +484,7 @@ function main_menu() {
             7) toggle_root_ssh ;;
             8) install_phpmyadmin ;;
             9) system_utilities ;;
-            q|Q) 
+            0) 
                 echo "Goodbye!"
                 exit 0 
                 ;;

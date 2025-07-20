@@ -31,12 +31,12 @@ show_menu() {
     echo "                            Backup and Restore Menu"
     echo -e "=============================================================================${NC}"
     echo -e "${YELLOW}Main Menu:${NC}"
-    echo "  1) Backup WordPress Sites"
-    echo "  2) Restore WordPress Sites"
-    echo "  3) Backup PostgreSQL"
-    echo "  4) Restore PostgreSQL"
-    echo "  5) Transfer Backups"
-    echo "  6) Exit"
+    echo "  1) Backup WordPress Sites - Create backups of WordPress websites and databases"
+    echo "  2) Restore WordPress Sites - Restore WordPress sites from backup archives"
+    echo "  3) Backup PostgreSQL - Create PostgreSQL database backups"
+    echo "  4) Restore PostgreSQL - Restore PostgreSQL databases from backup files"
+    echo "  5) Transfer Backups - Copy backups to another server via SSH"
+    echo "  0) Exit - Return to main menu"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
@@ -125,6 +125,43 @@ backup_wordpress_site() {
     success "Backup completed for ${site_name}"
 }
 
+# Function to discover and list WordPress sites
+discover_wordpress_sites() {
+    local sites=()
+    local site_types=()
+    
+    if [ -d "${WWW_PATH}" ]; then
+        for site_dir in "${WWW_PATH}"/*; do
+            if [ -d "${site_dir}" ]; then
+                site_name=$(basename "${site_dir}")
+                
+                # Skip the html directory
+                if [ "${site_name}" = "html" ]; then
+                    continue
+                fi
+                
+                if is_wordpress "${site_dir}"; then
+                    sites+=("${site_name}")
+                    site_types+=("Main Domain")
+                else
+                    # Check for subdirectory WordPress installations
+                    for subdir in "${site_dir}"/*; do
+                        if [ -d "${subdir}" ] && is_wordpress "${subdir}"; then
+                            subdir_name=$(basename "${subdir}")
+                            sites+=("${site_name}/${subdir_name}")
+                            site_types+=("Subdirectory")
+                        fi
+                    done
+                fi
+            fi
+        done
+    fi
+    
+    # Return the arrays (using global variables for simplicity)
+    DISCOVERED_SITES=("${sites[@]}")
+    DISCOVERED_TYPES=("${site_types[@]}")
+}
+
 # Main WordPress backup function
 backup_wordpress() {
     local TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
@@ -144,24 +181,74 @@ backup_wordpress() {
     # Check WP-CLI
     check_wpcli
     
-    # Iterate through all directories in www path
-    for site_dir in "${WWW_PATH}"/*; do
-        if [ -d "${site_dir}" ]; then
-            site_name=$(basename "${site_dir}")
-            
-            # Skip the html directory
-            if [ "${site_name}" = "html" ]; then
-                log_message "Skipping html directory"
-                continue
-            fi
-            
-            log_message "Processing site: ${site_name}"
-            
-            if is_wordpress "${site_dir}"; then
-                backup_wordpress_site "${site_dir}" "${site_name}"
-            fi
-        fi
+    # Discover WordPress sites
+    discover_wordpress_sites
+    
+    if [ ${#DISCOVERED_SITES[@]} -eq 0 ]; then
+        error_exit "No WordPress sites found in ${WWW_PATH}"
+    fi
+    
+    # Show site selection menu
+    echo
+    echo -e "${CYAN}Available WordPress Sites:${NC}"
+    echo "----------------------------------------"
+    for i in "${!DISCOVERED_SITES[@]}"; do
+        echo -e "  $((i+1))) ${GREEN}${DISCOVERED_SITES[i]}${NC} (${DISCOVERED_TYPES[i]})"
     done
+    echo -e "  $((${#DISCOVERED_SITES[@]}+1))) ${YELLOW}Backup ALL websites${NC}"
+    echo -e "  $((${#DISCOVERED_SITES[@]}+2))) ${RED}Cancel${NC}"
+    echo "----------------------------------------"
+    echo
+    
+    read -p "Select option (1-$((${#DISCOVERED_SITES[@]}+2))): " choice
+    
+    # Handle user choice
+    if [ "$choice" = "$((${#DISCOVERED_SITES[@]}+2))" ]; then
+        log_message "Backup cancelled by user"
+        echo "Backup cancelled."
+        return
+    elif [ "$choice" = "$((${#DISCOVERED_SITES[@]}+1))" ]; then
+        # Backup all sites
+        log_message "User selected to backup all WordPress sites"
+        echo "Backing up all WordPress sites..."
+        
+        for i in "${!DISCOVERED_SITES[@]}"; do
+            local site_name="${DISCOVERED_SITES[i]}"
+            local site_type="${DISCOVERED_TYPES[i]}"
+            
+            if [ "$site_type" = "Subdirectory" ]; then
+                local main_domain=$(echo "$site_name" | cut -d'/' -f1)
+                local subdir=$(echo "$site_name" | cut -d'/' -f2)
+                local site_dir="${WWW_PATH}/${main_domain}/${subdir}"
+            else
+                local site_dir="${WWW_PATH}/${site_name}"
+            fi
+            
+            log_message "Processing site: ${site_name} (${site_type})"
+            backup_wordpress_site "${site_dir}" "${site_name}"
+        done
+    else
+        # Backup selected site
+        if [[ ! "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt ${#DISCOVERED_SITES[@]} ]; then
+            error_exit "Invalid selection"
+        fi
+        
+        local selected_site="${DISCOVERED_SITES[$((choice-1))]}"
+        local selected_type="${DISCOVERED_TYPES[$((choice-1))]}"
+        
+        log_message "User selected to backup: ${selected_site} (${selected_type})"
+        echo "Backing up: ${selected_site}..."
+        
+        if [ "$selected_type" = "Subdirectory" ]; then
+            local main_domain=$(echo "$selected_site" | cut -d'/' -f1)
+            local subdir=$(echo "$selected_site" | cut -d'/' -f2)
+            local site_dir="${WWW_PATH}/${main_domain}/${subdir}"
+        else
+            local site_dir="${WWW_PATH}/${selected_site}"
+        fi
+        
+        backup_wordpress_site "${site_dir}" "${selected_site}"
+    fi
     
     # Cleanup old backups
     log_message "Cleaning up old backups"
@@ -502,7 +589,7 @@ main() {
             3) backup_postgres ;;
             4) restore_postgresql ;;
             5) transfer_backups ;;
-            6) echo -e "${GREEN}Thank you for using Backup and Restore!${NC}"; exit 0 ;;
+            0) echo -e "${GREEN}Thank you for using Backup and Restore!${NC}"; exit 0 ;;
             *) echo -e "${RED}Invalid option${NC}"; sleep 2 ;;
         esac
         

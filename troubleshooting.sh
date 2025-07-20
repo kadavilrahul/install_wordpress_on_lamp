@@ -249,19 +249,19 @@ verify_ownership() {
 # Main menu
 main_menu() {
     echo -e "\n${BLUE}=== WordPress Troubleshooting Menu ===${NC}"
-    echo "1. Fix permissions"
-    echo "2. Check service status (Apache/MySQL/PHP)"
-    echo "3. Check system resources"
-    echo "4. Check error logs"
-    echo "5. Manage plugins"
-    echo "6. Clean MySQL binary logs"
-    echo "7. Repair/Optimize database"
-    echo "8. Redis troubleshooting"
-    echo "9. Toggle debug mode"
-    echo "10. Verify file ownership"
-    echo "11. Exit"
+    echo "  1) Fix permissions - Set correct file and folder permissions for WordPress"
+    echo "  2) Check service status (Apache/MySQL/PHP) - View and restart web server and database services"
+    echo "  3) Check system resources - Monitor memory usage, disk space, and directory sizes"
+    echo "  4) Check error logs - Review Apache, domain, and WordPress debug logs"
+    echo "  5) Manage plugins - Deactivate, activate, or remove WordPress plugins"
+    echo "  6) Clean MySQL binary logs - Remove MySQL binary logs to free up disk space"
+    echo "  7) Repair/Optimize database - Fix and optimize WordPress database tables"
+    echo "  8) Redis troubleshooting - Diagnose and fix Redis caching connection issues"
+    echo "  9) Toggle debug mode - Enable or disable WordPress debug logging"
+    echo "  10) Verify file ownership - Check and fix WordPress file ownership settings"
+    echo "  0) Exit - Return to main menu"
     
-    read -p "Choose an option (1-11): " option
+    read -p "Choose an option (0-10): " option
     case "$option" in
         1) fix_permissions;;
         2)
@@ -277,7 +277,7 @@ main_menu() {
         8) redis_troubleshoot;;
         9) toggle_debug;;
         10) verify_ownership;;
-        11) exit 0;;
+        0) exit 0;;
         *) error "Invalid option";;
     esac
 }

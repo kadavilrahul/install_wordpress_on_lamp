@@ -82,13 +82,19 @@ show_menu() {
     echo "                            Website Master"
     echo -e "=============================================================================${NC}"
     echo -e "${YELLOW}Main Menu:${NC}"
-    echo "  1) Install LAMP Stack + WordPress    2) Backup/Restore"
-    echo "  3) Install Apache + SSL Only         4) Miscellaneous Tools"
-    echo "  5) MySQL Remote Access               6) Troubleshooting"
-    echo "  7) Rclone Management                 8) Configure Redis"
-    echo "  9) Remove Websites & Databases      10) Remove Orphaned Databases"
-    echo "  11) Fix Apache Configs              12) System Status Check"
-    echo "  13) Exit"
+    echo "  1) Install LAMP Stack + WordPress - Complete LAMP installation with WordPress setup"
+    echo "  2) Backup/Restore - Backup and restore WordPress sites and databases"
+    echo "  3) Install Apache + SSL Only - Set up web server with SSL for existing domains"
+    echo "  4) Miscellaneous Tools - Additional utilities and system tools"
+    echo "  5) MySQL Remote Access - Configure MySQL for remote connections"
+    echo "  6) Troubleshooting - Diagnose and fix common website issues"
+    echo "  7) Rclone Management - Manage cloud storage backups with Google Drive"
+    echo "  8) Configure Redis - Set up Redis caching for better performance"
+    echo "  9) Remove Websites & Databases - Clean removal of websites and associated data"
+    echo "  10) Remove Orphaned Databases - Clean up databases without corresponding websites"
+    echo "  11) Fix Apache Configs - Repair broken Apache virtual host configurations"
+    echo "  12) System Status Check - View system resources and service status"
+    echo "  0) Exit - Close the Website Master tool"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
@@ -1431,7 +1437,7 @@ main() {
             10) remove_orphaned_databases ;;
             11) fix_all_apache_configs ;;
             12) system_status_check ;;
-            13) echo -e "${GREEN}Thank you for using WordPress Master!${NC}"; exit 0 ;;
+            0) echo -e "${GREEN}Thank you for using WordPress Master!${NC}"; exit 0 ;;
             *) echo -e "${RED}Invalid option${NC}"; sleep 1 ;;
         esac
     done

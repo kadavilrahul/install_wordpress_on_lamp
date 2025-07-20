@@ -1,5 +1,0 @@
-File: ALL
-Options which are tested OK
-ALL 
-
-Testing need to be done.

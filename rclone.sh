@@ -25,6 +25,153 @@ check_root() {
 
 # === Global rclone Functions ===
 
+show_rclone_status() {
+    clear
+    echo -e "${CYAN}======================================================================${NC}"
+    echo "                         rclone Installation Status"
+    echo -e "${CYAN}======================================================================${NC}"
+    
+    # Check rclone installation
+    if command -v rclone &>/dev/null; then
+        local rclone_version=$(rclone version --check=false 2>/dev/null | head -n 1 | cut -d' ' -f2 || echo "unknown")
+        success "rclone is installed (version: $rclone_version)"
+        echo "  Location: $(which rclone)"
+    else
+        warn "rclone is NOT installed"
+    fi
+    
+    # Check jq installation
+    if command -v jq &>/dev/null; then
+        local jq_version=$(jq --version 2>/dev/null || echo "unknown")
+        success "jq is installed ($jq_version)"
+    else
+        warn "jq is NOT installed (required for config management)"
+    fi
+    
+    echo
+    echo -e "${CYAN}=== Configuration Status ===${NC}"
+    
+    # Check config file
+    if [ -f "$CONFIG_FILE" ]; then
+        success "Configuration file exists: $CONFIG_FILE"
+        
+        # Validate JSON
+        if jq empty "$CONFIG_FILE" 2>/dev/null; then
+            success "Configuration file is valid JSON"
+            
+            # Count defined remotes
+            local num_remotes=$(jq '.rclone_remotes | length' "$CONFIG_FILE" 2>/dev/null || echo "0")
+            if [ "$num_remotes" -gt 0 ]; then
+                success "$num_remotes remote(s) defined in config"
+            else
+                warn "No remotes defined in rclone_remotes array"
+            fi
+        else
+            error "Configuration file contains invalid JSON"
+        fi
+    else
+        warn "Configuration file not found: $CONFIG_FILE"
+    fi
+    
+    echo
+    echo -e "${CYAN}=== Configured Remotes Status ===${NC}"
+    
+    # Check if rclone is installed before checking remotes
+    if command -v rclone &>/dev/null; then
+        local configured_remotes=$(rclone listremotes 2>/dev/null || echo "")
+        if [ -n "$configured_remotes" ]; then
+            success "rclone configured remotes found:"
+            echo "$configured_remotes" | while read -r remote; do
+                if [ -n "$remote" ]; then
+                    echo "  - $remote"
+                    # Test remote accessibility
+                    local remote_name=${remote%:}
+                    if timeout 10 rclone lsf "$remote" --max-depth 1 &>/dev/null; then
+                        echo -e "    ${GREEN}✓ Accessible${NC}"
+                    else
+                        echo -e "    ${RED}✗ Not accessible (check auth)${NC}"
+                    fi
+                fi
+            done
+        else
+            warn "No rclone remotes are currently configured"
+        fi
+    else
+        warn "Cannot check configured remotes - rclone not installed"
+    fi
+    
+    echo
+    echo -e "${CYAN}=== Backup Directory Status ===${NC}"
+    if [ -d "$BACKUP_SOURCE" ]; then
+        success "Backup directory exists: $BACKUP_SOURCE"
+        local backup_size=$(du -sh "$BACKUP_SOURCE" 2>/dev/null | cut -f1 || echo "unknown")
+        echo "  Size: $backup_size"
+        local file_count=$(find "$BACKUP_SOURCE" -type f 2>/dev/null | wc -l || echo "unknown")
+        echo "  Files: $file_count"
+    else
+        warn "Backup directory does not exist: $BACKUP_SOURCE"
+    fi
+}
+
+show_existing_remotes() {
+    clear
+    echo -e "${CYAN}======================================================================${NC}"
+    echo "                         Existing rclone Remotes"
+    echo -e "${CYAN}======================================================================${NC}"
+    
+    # Check from config.json
+    echo -e "${YELLOW}=== Remotes defined in config.json ===${NC}"
+    if [ -f "$CONFIG_FILE" ] && jq empty "$CONFIG_FILE" 2>/dev/null; then
+        local num_remotes=$(jq '.rclone_remotes | length' "$CONFIG_FILE" 2>/dev/null || echo "0")
+        if [ "$num_remotes" -gt 0 ]; then
+            jq -r '.rclone_remotes[] | "Remote: \(.remote_name)\n  Client ID: \(.client_id)\n  Client Secret: \(.client_secret[0:20])...\n"' "$CONFIG_FILE" 2>/dev/null
+        else
+            warn "No remotes defined in config.json"
+        fi
+    else
+        warn "Config file not found or invalid JSON"
+    fi
+    
+    echo
+    echo -e "${YELLOW}=== Actually configured rclone remotes ===${NC}"
+    
+    if command -v rclone &>/dev/null; then
+        local configured_remotes=$(rclone listremotes 2>/dev/null || echo "")
+        if [ -n "$configured_remotes" ]; then
+            echo "$configured_remotes" | while read -r remote; do
+                if [ -n "$remote" ]; then
+                    local remote_name=${remote%:}
+                    echo -e "${GREEN}Remote: $remote${NC}"
+                    
+                    # Get remote type and some config details
+                    local remote_type=$(rclone config show "$remote_name" 2>/dev/null | grep "type" | cut -d'=' -f2 | tr -d ' ' || echo "unknown")
+                    echo "  Type: $remote_type"
+                    
+                    # Test accessibility
+                    if timeout 10 rclone lsf "$remote" --max-depth 1 &>/dev/null; then
+                        echo -e "  Status: ${GREEN}✓ Accessible${NC}"
+                        
+                        # Get storage usage if accessible
+                        local usage=$(timeout 10 rclone about "$remote" 2>/dev/null | grep "Total:" | awk '{print $2, $3}' || echo "unknown")
+                        if [ "$usage" != "unknown" ]; then
+                            echo "  Storage Used: $usage"
+                        fi
+                    else
+                        echo -e "  Status: ${RED}✗ Not accessible${NC}"
+                    fi
+                    echo
+                fi
+            done
+        else
+            warn "No rclone remotes are currently configured"
+            echo "Use option 1 to install rclone, then option 2 to configure remotes."
+        fi
+    else
+        warn "rclone is not installed"
+        echo "Use option 1 to install rclone first."
+    fi
+}
+
 install_rclone_package() {
     info "Installing rclone package..."
     if command -v rclone &>/dev/null; then
@@ -138,6 +285,315 @@ check_sizes() {
     info "Checking total size of remote '$REMOTE_NAME:'"
     if ! rclone size "$REMOTE_NAME:" 2>/dev/null; then
         error "Failed to check remote size. Is the remote properly configured?"
+    fi
+}
+
+browse_remote_folders() {
+    local current_path=""
+    local selected_path=""
+    
+    while true; do
+        # Construct the full path for rclone
+        local rclone_path="$REMOTE_NAME:${current_path:+$current_path/}"
+        
+        # Get combined list of files and directories
+        local items=()
+        echo "🔍 Loading folders from $rclone_path..."
+        if ! mapfile -t items < <(rclone lsf "$rclone_path" 2>/dev/null); then
+            error "❌ Failed to list contents of $rclone_path. Please check your remote connection."
+        fi
+        
+        # Separate directories (ignore files for folder selection)
+        local dirs=()
+        for item in "${items[@]}"; do
+            [[ "$item" == */ ]] && dirs+=("$item")
+        done
+        
+        # Debug: Show what we found
+        echo "📊 Found ${#items[@]} total items, ${#dirs[@]} directories"
+        sleep 1
+
+        clear
+        echo -e "${CYAN}======================================================================${NC}"
+        echo -e "  📁 Browse Remote Folders: ${YELLOW}$rclone_path${NC}"
+        echo -e "${CYAN}======================================================================${NC}"
+        echo -e "${GREEN}📂 Current Location: ${YELLOW}${current_path:-"Root Directory"}${NC}"
+        echo
+        
+        local i=1
+        echo -e "${BLUE}📂 Available Folders:${NC}"
+        if [ ${#dirs[@]} -eq 0 ]; then 
+            echo "     (No folders found - you can create one or select this location)"
+            max_folder_num=0
+        else
+            for dir in "${dirs[@]}"; do 
+                echo "     $i) 📁 ${dir%/}"
+                i=$((i+1))
+            done
+            max_folder_num=$((i-1))
+        fi
+        
+        echo
+        echo -e "${CYAN}📋 Available Actions:${NC}"
+        [ -n "$current_path" ] && echo "     u) ⬆️  Go up one level (to parent folder)"
+        echo "     s) ✅ SELECT this folder as destination"
+        echo "     c) ➕ Create new folder here"
+        echo "     q) ❌ Cancel and go back"
+        echo -e "${CYAN}----------------------------------------------------------------------${NC}"
+        echo -e "${YELLOW}💡 How to use:${NC}"
+        if [ $max_folder_num -gt 0 ]; then
+            echo "   📁 Enter a number (1-$max_folder_num) to open that folder"
+        fi
+        echo "   ✅ Enter 's' to use this location as destination"
+        echo "   ➕ Enter 'c' to create a new folder here"
+        [ -n "$current_path" ] && echo "   ⬆️  Enter 'u' to go back to parent folder"
+        echo "   ❌ Enter 'q' to cancel"
+        echo -e "${CYAN}----------------------------------------------------------------------${NC}"
+        echo
+
+        read -p "Choose your option: " choice
+
+        case "$choice" in
+            q) return 1 ;;
+            u)
+               if [ -n "$current_path" ]; then
+                   current_path=$(dirname "$current_path")
+                   [ "$current_path" == "." ] && current_path=""
+               fi
+               ;;
+            s) 
+               selected_path="$current_path"
+               echo
+               echo -e "${GREEN}✅ Selected Destination:${NC}"
+               echo -e "   📁 ${YELLOW}$REMOTE_NAME:${selected_path:+$selected_path/}${NC}"
+               echo
+               read -p "Confirm this destination? (y/n): " confirm
+               if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                   echo "$selected_path"
+                   return 0
+               fi
+               ;;
+            c)
+               echo
+               read -p "📝 Enter new folder name: " new_folder
+               if [ -n "$new_folder" ]; then
+                   local new_path="$REMOTE_NAME:${current_path:+$current_path/}$new_folder"
+                   echo "Creating folder '$new_folder'..."
+                   if rclone mkdir "$new_path" 2>/dev/null; then
+                       success "✅ Created folder: $new_folder"
+                       echo "📂 Navigating into the new folder..."
+                       if [ -z "$current_path" ]; then
+                           current_path="$new_folder"
+                       else
+                           current_path="$current_path/$new_folder"
+                       fi
+                   else
+                       warn "❌ Failed to create folder: $new_folder"
+                   fi
+                   read -p "Press Enter to continue..."
+               fi
+               ;;
+            *)
+                if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le ${#dirs[@]} ]; then
+                     local selected_dir_with_slash=${dirs[choice-1]}
+                     local selected_dir=${selected_dir_with_slash%/}
+                     
+                     echo "📂 Navigating into folder: $selected_dir"
+                     
+                     if [ -z "$current_path" ]; then
+                         current_path="$selected_dir"
+                     else
+                         current_path="$current_path/$selected_dir"
+                     fi
+                else
+                    echo
+                    warn "❌ Invalid selection. Please choose a valid option."
+                    read -p "Press Enter to try again..."
+                fi
+                ;;
+        esac
+    done
+}
+
+copy_backups_to_remote() {
+    info "Copy local backups to remote '$REMOTE_NAME:'"
+    
+    # Test if remote is accessible
+    if ! rclone lsf "$REMOTE_NAME:" &>/dev/null; then
+        error "Cannot access remote '$REMOTE_NAME:'. Please check configuration."
+    fi
+    
+    # Check if backup directory exists
+    if [ ! -d "$BACKUP_SOURCE" ]; then
+        error "Backup directory not found: $BACKUP_SOURCE"
+    fi
+    
+    # Get list of backup files
+    local backup_files=()
+    mapfile -t backup_files < <(find "$BACKUP_SOURCE" -maxdepth 1 -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.sql" -o -name "*.dump" \) 2>/dev/null | sort)
+    
+    if [ ${#backup_files[@]} -eq 0 ]; then
+        warn "No backup files found in $BACKUP_SOURCE"
+        return
+    fi
+    
+    # Show available backup files
+    clear
+    echo -e "${CYAN}======================================================================${NC}"
+    echo -e "  Available Backup Files in: ${YELLOW}$BACKUP_SOURCE${NC}"
+    echo -e "${CYAN}======================================================================${NC}"
+    
+    local i=1
+    for file in "${backup_files[@]}"; do
+        local filename=$(basename "$file")
+        local filesize=$(du -sh "$file" 2>/dev/null | cut -f1 || echo "unknown")
+        echo "  $i) $filename ($filesize)"
+        i=$((i+1))
+    done
+    
+    echo -e "${CYAN}----------------------------------------------------------------------${NC}"
+    echo "  $i) Select ALL backup files"
+    echo "  q) Cancel"
+    echo -e "${CYAN}----------------------------------------------------------------------${NC}"
+    
+    read -p "Enter file numbers (e.g. '1 3-5'), 'all', or 'q' to cancel: " selection
+    if [[ "$selection" == "q" || -z "$selection" ]]; then 
+        info "Cancelled."
+        return
+    fi
+    
+    local files_to_copy=()
+    if [[ "$selection" == "all" || "$selection" == "$i" ]]; then
+        files_to_copy=("${backup_files[@]}")
+    else
+        # Parse selection similar to restore function
+        selection=$(echo "$selection" | sed -e 's/ ,/,/g' -e 's/, / /g' -e 's/,/ /g')
+        for part in $selection; do
+            if [[ "$part" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+                local start=${BASH_REMATCH[1]}
+                local end=${BASH_REMATCH[2]}
+                for j in $(seq "$start" "$end"); do
+                    if [ "$j" -ge 1 ] && [ "$j" -le "${#backup_files[@]}" ]; then
+                        local file="${backup_files[j-1]}"
+                        if ! printf '%s\n' "${files_to_copy[@]}" | grep -q -x "$file"; then
+                            files_to_copy+=("$file")
+                        fi
+                    fi
+                done
+            elif [[ "$part" =~ ^[0-9]+$ ]]; then
+                if [ "$part" -ge 1 ] && [ "$part" -le "${#backup_files[@]}" ]; then
+                    local file="${backup_files[part-1]}"
+                    if ! printf '%s\n' "${files_to_copy[@]}" | grep -q -x "$file"; then
+                        files_to_copy+=("$file")
+                    fi
+                fi
+            fi
+        done
+    fi
+    
+    if [ ${#files_to_copy[@]} -eq 0 ]; then 
+        warn "No valid files selected."
+        return
+    fi
+    
+    # Show selected files
+    info "Selected files to copy:"
+    for file in "${files_to_copy[@]}"; do 
+        echo -e "  - ${CYAN}$(basename "$file")${NC}"
+    done
+    echo
+    
+    # Destination folder selection
+    echo
+    info "🌐 Choose destination folder on your remote Drive:"
+    echo -e "${CYAN}======================================================================${NC}"
+    echo "  1) Upload to Root Directory (server_backup:)"
+    echo "  2) Upload to 'Backups' folder (server_backup:Backups/)"
+    echo "  3) Create custom folder name"
+    echo "  4) Advanced folder browser (navigate existing folders)"
+    echo "  0) Cancel upload"
+    echo -e "${CYAN}======================================================================${NC}"
+    read -p "Select destination option (1-4, 0 to cancel): " dest_choice
+    
+    local dest_path=""
+    local full_dest_path=""
+    
+    case $dest_choice in
+        1)
+            dest_path=""
+            full_dest_path="$REMOTE_NAME:"
+            info "✅ Selected: Root directory ($full_dest_path)"
+            ;;
+        2)
+            dest_path="Backups"
+            full_dest_path="$REMOTE_NAME:Backups/"
+            info "✅ Selected: Backups folder ($full_dest_path)"
+            echo "📁 Creating Backups folder if it doesn't exist..."
+            rclone mkdir "$full_dest_path" 2>/dev/null || true
+            ;;
+        3)
+            read -p "📝 Enter custom folder name: " custom_folder
+            if [ -n "$custom_folder" ]; then
+                dest_path="$custom_folder"
+                full_dest_path="$REMOTE_NAME:$custom_folder/"
+                info "✅ Selected: Custom folder ($full_dest_path)"
+                echo "📁 Creating '$custom_folder' folder..."
+                rclone mkdir "$full_dest_path" 2>/dev/null || warn "Failed to create folder"
+            else
+                warn "❌ No folder name provided, using root directory"
+                dest_path=""
+                full_dest_path="$REMOTE_NAME:"
+            fi
+            ;;
+        4)
+            info "🔍 Starting advanced folder browser..."
+            echo
+            if dest_path=$(browse_remote_folders); then
+                full_dest_path="$REMOTE_NAME:${dest_path:+$dest_path/}"
+            else
+                info "❌ Folder browser cancelled."
+                return
+            fi
+            ;;
+        0)
+            info "❌ Upload cancelled."
+            return
+            ;;
+        *)
+            warn "❌ Invalid option, using root directory"
+            dest_path=""
+            full_dest_path="$REMOTE_NAME:"
+            ;;
+    esac
+    
+    if [ -n "$full_dest_path" ]; then
+        info "📁 Final destination: $full_dest_path"
+        read -p "Proceed with upload? (y/n): " confirm
+        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then 
+            info "Copy cancelled."
+            return
+        fi
+        
+        # Copy files
+        local failed_files=()
+        for file in "${files_to_copy[@]}"; do
+            local filename=$(basename "$file")
+            info "Copying: $filename"
+            if ! rclone copy -v "$file" "$full_dest_path" --progress; then
+                failed_files+=("$filename")
+            fi
+        done
+        
+        if [ ${#failed_files[@]} -eq 0 ]; then
+            success "All files copied successfully to $full_dest_path"
+        else
+            warn "Some files failed to copy:"
+            for file in "${failed_files[@]}"; do
+                echo -e "  - ${RED}$file${NC}"
+            done
+        fi
+    else
+        info "Destination selection cancelled."
     fi
 }
 
@@ -321,10 +777,12 @@ show_main_menu() {
     echo -e "${CYAN}======================================================================${NC}"
     echo "                         rclone Management - Main Menu"
     echo -e "${CYAN}======================================================================${NC}"
-    echo "  1) Install rclone Package"
-    echo "  2) Manage a Website Remote"
-    echo "  3) Uninstall rclone Package (Deletes Everything)"
-    echo "  4) Exit"
+    echo "  1) Install rclone Package - Download and install rclone with dependencies"
+    echo "  2) Show Installation Status & Overview - Check rclone setup and configuration status"
+    echo "  3) Show Existing Remotes Details - Display configured remotes and accessibility"
+    echo "  4) Manage a Website Remote - Configure and use remote storage connections"
+    echo "  5) Uninstall rclone Package (Deletes Everything) - Remove rclone and all configurations"
+    echo "  0) Exit - Return to main menu"
     echo -e "${CYAN}----------------------------------------------------------------------${NC}"
 }
 
@@ -333,10 +791,11 @@ show_remote_menu() {
     echo -e "${CYAN}======================================================================${NC}"
     echo -e "          rclone Management for: ${YELLOW}${REMOTE_NAME}${NC}"
     echo -e "${CYAN}======================================================================${NC}"
-    echo "  1) Configure or Re-Configure Remote"
-    echo "  2) Check Folder Sizes"
-    echo "  3) Restore Backups from Drive (Browse)"
-    echo "  4) Back to Main Menu"
+    echo "  1) Configure or Re-Configure Remote - Set up Google Drive authentication"
+    echo "  2) Check Folder Sizes - View local and remote storage usage"
+    echo "  3) Copy Backups to Remote - Upload local backups to Drive folder"
+    echo "  4) Restore Backups from Drive (Browse) - Download backups from Drive to local"
+    echo "  0) Back to Main Menu - Return to main rclone menu"
     echo -e "${CYAN}----------------------------------------------------------------------${NC}"
 }
 
@@ -346,12 +805,13 @@ manage_remote_loop() {
         
         while true; do
             show_remote_menu
-            read -p "Select action for '$REMOTE_NAME' (1-4): " choice
+            read -p "Select action for '$REMOTE_NAME' (0-4): " choice
             case $choice in
                 1) configure_remote ;;
                 2) check_sizes ;;
-                3) restore_with_browse ;;
-                4) break ;; # Break to re-select remote
+                3) copy_backups_to_remote ;;
+                4) restore_with_browse ;;
+                0) break ;; # Break to re-select remote
                 *) warn "Invalid option." ;;
             esac
             press_enter
@@ -363,12 +823,14 @@ main() {
     check_root
     while true; do
         show_main_menu
-        read -p "Select option (1-4): " choice
+        read -p "Select option (0-5): " choice
         case $choice in
             1) install_rclone_package ;;
-            2) manage_remote_loop ;;
-            3) uninstall_rclone_package ;;
-            4) break ;;
+            2) show_rclone_status ;;
+            3) show_existing_remotes ;;
+            4) manage_remote_loop ;;
+            5) uninstall_rclone_package ;;
+            0) break ;;
             *) warn "Invalid option." ;;
         esac
         press_enter
