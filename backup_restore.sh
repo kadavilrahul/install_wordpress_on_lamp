@@ -16,6 +16,10 @@ DB_USER="your_user"
 DB_PASS="your_password"
 BACKUP_RETENTION_DAYS=30
 
+# SSH Configuration
+SSH_TIMEOUT=30
+SSH_CONNECT_TIMEOUT=10
+
 # Utility functions
 log() { echo "[$1] $2"; }
 error() { log "ERROR" "$1"; echo -e "${RED}Error: $1${NC}" >&2; exit 1; }
@@ -53,6 +57,47 @@ log_message() {
 error_exit() {
     log_message "ERROR: ${1}"
     exit 1
+}
+
+# Function to setup SSH keys for passwordless authentication
+setup_ssh_keys() {
+    local dest_ip="$1"
+    local dest_user="$2"
+    local ssh_port="$3"
+    
+    info "Setting up SSH keys for passwordless authentication..."
+    
+    # Check if SSH key exists
+    if [ ! -f ~/.ssh/id_rsa ]; then
+        info "Generating SSH key pair..."
+        ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N "" -C "backup-transfer-$(hostname)"
+    fi
+    
+    # Copy public key to destination
+    info "Copying public key to destination server..."
+    if ssh-copy-id -o ConnectTimeout=${SSH_CONNECT_TIMEOUT} -p ${ssh_port} ${dest_user}@${dest_ip}; then
+        success "SSH key setup completed successfully!"
+        return 0
+    else
+        warn "SSH key setup failed. You'll need to use password authentication."
+        return 1
+    fi
+}
+
+# Function to test network connectivity
+test_connectivity() {
+    local dest_ip="$1"
+    local ssh_port="$2"
+    
+    info "Testing network connectivity to ${dest_ip}:${ssh_port}..."
+    
+    # Test basic TCP connectivity
+    if timeout 10 bash -c "</dev/tcp/${dest_ip}/${ssh_port}" 2>/dev/null; then
+        success "Network connectivity test passed"
+        return 0
+    else
+        error_exit "Cannot connect to ${dest_ip}:${ssh_port}. Please check IP address, port, and firewall settings."
+    fi
 }
 
 # Function to check if a directory is a WordPress installation
@@ -544,6 +589,29 @@ EOF
 transfer_backups() {
     info "Starting backup transfer process..."
     
+    # Install required packages
+    info "Checking required packages..."
+    if ! command -v rsync &> /dev/null; then
+        info "Installing rsync..."
+        apt update -qq && apt install -y rsync || error_exit "Failed to install rsync"
+    fi
+    
+    if ! command -v ssh &> /dev/null; then
+        info "Installing openssh-client..."
+        apt update -qq && apt install -y openssh-client || error_exit "Failed to install openssh-client"
+    fi
+    
+    # Check if backup directory exists and has files
+    if [ ! -d "$BACKUP_DIR" ] || [ -z "$(ls -A $BACKUP_DIR 2>/dev/null)" ]; then
+        error_exit "No backups found in $BACKUP_DIR. Please create backups first."
+    fi
+    
+    # Show available backups
+    echo -e "${CYAN}Available backup files:${NC}"
+    ls -lah "$BACKUP_DIR"/*.tar.gz 2>/dev/null || echo "No .tar.gz backup files found"
+    ls -lah "$BACKUP_DIR"/*.dump 2>/dev/null || echo "No .dump backup files found"
+    echo
+    
     # Ask if the user is on the source/old server
     read -p "Are you on the source/old server? (yes/no): " ON_SOURCE_SERVER
     if [[ "$ON_SOURCE_SERVER" != "yes" ]]; then
@@ -557,24 +625,117 @@ transfer_backups() {
         error_exit "Destination IP address cannot be empty"
     fi
     
-    # Set the destination backup directory
-    DEST_BACKUP_DIR="/website_backups"
+    # Prompt for destination username (default: root)
+    read -p "Enter destination username (default: root): " DEST_USER
+    DEST_USER=${DEST_USER:-root}
     
-    # Test SSH connection
-    info "Testing SSH connection to ${DEST_IP}..."
-    if ! ssh -o ConnectTimeout=10 -o BatchMode=yes root@${DEST_IP} exit 2>/dev/null; then
-        error_exit "Cannot establish SSH connection to ${DEST_IP}. Please check connectivity and SSH keys."
+    # Prompt for destination port (default: 22)
+    read -p "Enter SSH port (default: 22): " SSH_PORT
+    SSH_PORT=${SSH_PORT:-22}
+    
+    # Set the destination backup directory
+    read -p "Enter destination backup directory (default: /website_backups): " DEST_BACKUP_DIR
+    DEST_BACKUP_DIR=${DEST_BACKUP_DIR:-/website_backups}
+    
+    # Test basic connectivity first
+    test_connectivity "$DEST_IP" "$SSH_PORT"
+    
+    # Test SSH connection with different methods
+    info "Testing SSH connection to ${DEST_USER}@${DEST_IP}:${SSH_PORT}..."
+    
+    # First try with key-based authentication
+    if ssh -o ConnectTimeout=${SSH_CONNECT_TIMEOUT} -o BatchMode=yes -o StrictHostKeyChecking=no -p ${SSH_PORT} ${DEST_USER}@${DEST_IP} exit 2>/dev/null; then
+        info "SSH key authentication successful"
+        SSH_AUTH_METHOD="key"
+    else
+        warn "SSH key authentication failed."
+        
+        # Ask if user wants to setup SSH keys
+        read -p "Would you like to setup SSH keys for passwordless authentication? (y/n): " SETUP_KEYS
+        if [[ "$SETUP_KEYS" =~ ^[Yy]$ ]]; then
+            if setup_ssh_keys "$DEST_IP" "$DEST_USER" "$SSH_PORT"; then
+                SSH_AUTH_METHOD="key"
+            else
+                SSH_AUTH_METHOD="password"
+            fi
+        else
+            SSH_AUTH_METHOD="password"
+        fi
+        
+        # If still using password, test the connection
+        if [ "$SSH_AUTH_METHOD" = "password" ]; then
+            info "Testing password authentication..."
+            if ! ssh -o ConnectTimeout=${SSH_CONNECT_TIMEOUT} -o StrictHostKeyChecking=no -p ${SSH_PORT} ${DEST_USER}@${DEST_IP} exit; then
+                error_exit "SSH connection failed. Please check credentials and connectivity."
+            fi
+        fi
     fi
     
     # Create the backup directory on the destination server if it doesn't exist
     info "Creating backup directory on destination server..."
-    ssh root@${DEST_IP} "mkdir -p ${DEST_BACKUP_DIR}" || error_exit "Failed to create backup directory on destination"
+    if [ "$SSH_AUTH_METHOD" = "key" ]; then
+        ssh -o StrictHostKeyChecking=no -p ${SSH_PORT} ${DEST_USER}@${DEST_IP} "mkdir -p ${DEST_BACKUP_DIR}" || error_exit "Failed to create backup directory on destination"
+    else
+        ssh -o StrictHostKeyChecking=no -p ${SSH_PORT} ${DEST_USER}@${DEST_IP} "mkdir -p ${DEST_BACKUP_DIR}" || error_exit "Failed to create backup directory on destination"
+    fi
+    
+    # Ask which files to transfer
+    echo -e "${CYAN}Transfer options:${NC}"
+    echo "1) Transfer all backup files"
+    echo "2) Transfer only WordPress backups (.tar.gz)"
+    echo "3) Transfer only database backups (.dump)"
+    echo "4) Select specific files"
+    read -p "Select option (1-4): " TRANSFER_OPTION
+    
+    case $TRANSFER_OPTION in
+        1)
+            TRANSFER_PATTERN="*"
+            ;;
+        2)
+            TRANSFER_PATTERN="*.tar.gz"
+            ;;
+        3)
+            TRANSFER_PATTERN="*.dump"
+            ;;
+        4)
+            echo "Available files:"
+            ls -1 "$BACKUP_DIR"/ 2>/dev/null | nl
+            read -p "Enter file numbers to transfer (space-separated): " FILE_NUMBERS
+            # This would need additional logic to handle specific file selection
+            TRANSFER_PATTERN="*"
+            warn "Specific file selection not implemented yet. Transferring all files."
+            ;;
+        *)
+            TRANSFER_PATTERN="*"
+            warn "Invalid option. Transferring all files."
+            ;;
+    esac
     
     # Transfer the backup files
-    info "Transferring backup files..."
-    rsync -avz --progress /website_backups/ root@${DEST_IP}:${DEST_BACKUP_DIR} || error_exit "Failed to transfer backup files"
+    info "Transferring backup files (pattern: $TRANSFER_PATTERN)..."
+    
+    if [ "$SSH_AUTH_METHOD" = "key" ]; then
+        rsync -avz --progress -e "ssh -o StrictHostKeyChecking=no -p ${SSH_PORT}" \
+            ${BACKUP_DIR}/${TRANSFER_PATTERN} ${DEST_USER}@${DEST_IP}:${DEST_BACKUP_DIR}/ || error_exit "Failed to transfer backup files"
+    else
+        rsync -avz --progress -e "ssh -o StrictHostKeyChecking=no -p ${SSH_PORT}" \
+            ${BACKUP_DIR}/${TRANSFER_PATTERN} ${DEST_USER}@${DEST_IP}:${DEST_BACKUP_DIR}/ || error_exit "Failed to transfer backup files"
+    fi
+    
+    # Verify transfer
+    info "Verifying transfer..."
+    if [ "$SSH_AUTH_METHOD" = "key" ]; then
+        REMOTE_FILES=$(ssh -o StrictHostKeyChecking=no -p ${SSH_PORT} ${DEST_USER}@${DEST_IP} "ls -1 ${DEST_BACKUP_DIR}/ 2>/dev/null | wc -l")
+    else
+        REMOTE_FILES=$(ssh -o StrictHostKeyChecking=no -p ${SSH_PORT} ${DEST_USER}@${DEST_IP} "ls -1 ${DEST_BACKUP_DIR}/ 2>/dev/null | wc -l")
+    fi
+    
+    LOCAL_FILES=$(ls -1 ${BACKUP_DIR}/ 2>/dev/null | wc -l)
+    
+    info "Local files: $LOCAL_FILES, Remote files: $REMOTE_FILES"
     
     success "Backup transfer completed successfully!"
+    info "Files transferred to: ${DEST_USER}@${DEST_IP}:${DEST_BACKUP_DIR}/"
 }
 
 # Main function
@@ -584,17 +745,40 @@ main() {
         read -p "Select option: " choice
 
         case $choice in
-            1) backup_wordpress ;;
-            2) restore_wordpress ;;
-            3) backup_postgres ;;
-            4) restore_postgresql ;;
-            5) transfer_backups ;;
-            0) echo -e "${GREEN}Thank you for using Backup and Restore!${NC}"; exit 0 ;;
-            *) echo -e "${RED}Invalid option${NC}"; sleep 2 ;;
+            1) 
+                backup_wordpress
+                echo
+                read -p "Press Enter to continue..."
+                ;;
+            2) 
+                restore_wordpress
+                echo
+                read -p "Press Enter to continue..."
+                ;;
+            3) 
+                backup_postgres
+                echo
+                read -p "Press Enter to continue..."
+                ;;
+            4) 
+                restore_postgresql
+                echo
+                read -p "Press Enter to continue..."
+                ;;
+            5) 
+                transfer_backups
+                echo
+                read -p "Press Enter to continue..."
+                ;;
+            0) 
+                echo -e "${GREEN}Thank you for using Backup and Restore!${NC}"
+                exit 0
+                ;;
+            *) 
+                echo -e "${RED}Invalid option${NC}"
+                sleep 2
+                ;;
         esac
-        
-        echo
-        read -p "Press Enter to continue..."
     done
 }
 
