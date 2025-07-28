@@ -33,6 +33,38 @@ check_system() {
     ! grep -q "Ubuntu" /etc/os-release && warn "This script is designed for Ubuntu"
     [ "$(df / | awk 'NR==2 {print $4}')" -lt 5242880 ] && error "Insufficient disk space. At least 5GB required"
     ! ping -c 1 google.com &>/dev/null && error "No internet connection detected"
+    
+    # Install essential tools if missing
+    local missing_tools=()
+    command -v jq >/dev/null || missing_tools+=("jq")
+    command -v dig >/dev/null || missing_tools+=("dnsutils")
+    command -v curl >/dev/null || missing_tools+=("curl")
+    command -v wget >/dev/null || missing_tools+=("wget")
+    command -v nano >/dev/null || missing_tools+=("nano")
+    command -v htop >/dev/null || missing_tools+=("htop")
+    
+    if [ ${#missing_tools[@]} -gt 0 ]; then
+        info "Installing essential tools: ${missing_tools[*]}"
+        export DEBIAN_FRONTEND=noninteractive
+        
+        # Fix any interrupted dpkg configurations
+        dpkg --configure -a 2>/dev/null || true
+        
+        # Update package lists
+        apt update -qq 2>/dev/null || apt update
+        
+        # Install missing tools with better error handling
+        if apt install -y "${missing_tools[@]}" 2>/dev/null; then
+            success "Essential tools installed successfully"
+        else
+            warn "Some tools may have failed to install, but continuing..."
+            # Try installing individually
+            for tool in "${missing_tools[@]}"; do
+                apt install -y "$tool" 2>/dev/null || warn "Failed to install $tool"
+            done
+        fi
+    fi
+    
     success "System requirements check passed"
 }
 
@@ -43,12 +75,21 @@ load_config() {
         REDIS_MAX_MEMORY=$(jq -r '.redis_max_memory // "1"' config.json)
         DB_ROOT_PASSWORD=$(jq -r '.mysql_root_password // ""' config.json)
         
+
+        
         # Try to get first domain from each section
         DOMAIN=$(jq -r '.main_domains[0] // ""' config.json)
         [ -z "$DOMAIN" ] && DOMAIN=$(jq -r '.subdomains[0] // ""' config.json)
-        [ -z "$DOMAIN" ] && DOMAIN=$(jq -r '.subdirectories[0] // ""' config.json)
+        [ -z "$DOMAIN" ] && DOMAIN=$(jq -r '.subdirectory_domains[0] // ""' config.json)
         
         info "Configuration loaded from config.json"
+        
+        # Inform user about pre-setting MySQL password
+        if [ -z "$DB_ROOT_PASSWORD" ]; then
+            info "Tip: You can pre-set MySQL password in config.json to skip manual entry"
+        fi
+    else
+        info "No config.json found - will create one with your settings"
     fi
 }
 
@@ -56,14 +97,24 @@ save_config() {
     local temp_file=$(mktemp)
     local domain_type="main_domains"
     [[ "$DOMAIN" == *"."*"."* ]] && domain_type="subdomains"
-    [[ "$DOMAIN" == *"/"* ]] && domain_type="subdirectories"
+    [[ "$DOMAIN" == *"/"* ]] && domain_type="subdirectory_domains"
 
     # Create config.json if it doesn't exist
-    [ ! -f "config.json" ] && echo '{"main_domains":[],"subdomains":[],"subdirectories":[]}' > config.json
+    [ ! -f "config.json" ] && echo '{"main_domains":[],"subdomains":[],"subdirectory_domains":[],"mysql_root_password":"","admin_email":"","redis_max_memory":"1"}' > config.json
 
-    jq --arg email "$ADMIN_EMAIL" \
-       --arg redis "$REDIS_MAX_MEMORY" \
-       --arg pass "$DB_ROOT_PASSWORD" \
+    # Preserve existing values if current variables are empty
+    local current_email="${ADMIN_EMAIL}"
+    local current_redis="${REDIS_MAX_MEMORY}"
+    local current_pass="${DB_ROOT_PASSWORD}"
+    
+    # Only preserve from config.json if the variable is truly empty
+    [ -z "$current_email" ] && current_email=$(jq -r '.admin_email // ""' config.json)
+    [ -z "$current_redis" ] && current_redis=$(jq -r '.redis_max_memory // "1"' config.json)
+    [ -z "$current_pass" ] && current_pass=$(jq -r '.mysql_root_password // ""' config.json)
+
+    jq --arg email "$current_email" \
+       --arg redis "$current_redis" \
+       --arg pass "$current_pass" \
        --arg domain "$DOMAIN" \
        --arg type "$domain_type" \
        '. + {
@@ -103,6 +154,9 @@ get_inputs() {
     local type="$1"
     echo -e "${YELLOW}Installation Configuration:${NC}"
     
+    # Load configuration to ensure we have the latest values
+    load_config
+    
     # Parse domains from config.json by type
     local main_domains=()
     local subdomains=()
@@ -110,7 +164,7 @@ get_inputs() {
     if [ -f "config.json" ]; then
         main_domains=($(jq -r '.main_domains[]?' config.json 2>/dev/null))
         subdomains=($(jq -r '.subdomains[]?' config.json 2>/dev/null))
-        subdirectories=($(jq -r '.subdirectories[]?' config.json 2>/dev/null))
+        subdirectories=($(jq -r '.subdirectory_domains[]?' config.json 2>/dev/null))
     fi
 
     case $type in
@@ -139,7 +193,7 @@ get_inputs() {
             # Find subdomains in config (format: sub.main.com)
             local subdomain=""
             local main_domain=""
-            for domain in "${config_domains[@]}"; do
+            for domain in "${subdomains[@]}"; do
                 if [[ "$domain" == *"."*"."* ]]; then
                     subdomain=$(echo "$domain" | cut -d'.' -f1)
                     main_domain=$(echo "$domain" | cut -d'.' -f2-)
@@ -181,7 +235,7 @@ get_inputs() {
         "subdirectory")
             # Check for existing subdirectory installations (format: domain/subdir)
             local subdir_found=""
-            for domain in "${config_domains[@]}"; do
+            for domain in "${subdirectories[@]}"; do
                 if [[ "$domain" == *"/"* ]]; then
                     MAIN_DOMAIN=$(echo "$domain" | cut -d'/' -f1)
                     WP_SUBDIR=$(echo "$domain" | cut -d'/' -f2)
@@ -236,8 +290,12 @@ get_inputs() {
         echo "Using admin email from config.json: $ADMIN_EMAIL"
     fi
     echo -e "${CYAN}MySQL Password Setup:${NC}"
-    if [ -z "$DB_ROOT_PASSWORD" ]; then
-        echo "Enter MySQL root password manually"
+    if [ -z "$DB_ROOT_PASSWORD" ] || [ "$DB_ROOT_PASSWORD" = "null" ]; then
+        echo "No MySQL root password found in config.json"
+        echo "You can either:"
+        echo "1. Enter password now (will be saved to config.json)"
+        echo "2. Edit config.json manually and set 'mysql_root_password' field"
+        echo
         while true; do
             read -sp "Enter MySQL root password: " DB_ROOT_PASSWORD; echo
             read -sp "Confirm password: " DB_ROOT_PASSWORD_CONFIRM; echo
@@ -245,6 +303,7 @@ get_inputs() {
             echo -e "${RED}Passwords do not match${NC}"
         done
         save_config
+        success "MySQL password saved to config.json for future use"
     else
         echo "Using MySQL root password from config.json"
     fi
@@ -257,8 +316,35 @@ get_inputs() {
 install_lamp() {
     info "Installing LAMP stack..."
     export DEBIAN_FRONTEND=noninteractive
-    apt update -y && apt upgrade -y || warn "Failed to update system"
-    apt install -y apache2 mysql-server php libapache2-mod-php php-mysql php-curl php-gd php-xml php-mbstring php-zip php-intl php-soap php-bcmath php-xmlrpc php-imagick php-opcache curl wget unzip certbot python3-certbot-apache redis-server || warn "Failed to install LAMP stack"
+    
+    # Fix any interrupted dpkg configurations
+    dpkg --configure -a 2>/dev/null || true
+    
+    # Update system
+    info "Updating system packages..."
+    if ! apt update -y; then
+        warn "Failed to update package lists, but continuing..."
+    fi
+    
+    if ! apt upgrade -y; then
+        warn "Failed to upgrade system packages, but continuing..."
+    fi
+    
+    # Install packages in groups for better error handling
+    local core_packages="apache2 mysql-server php libapache2-mod-php php-mysql"
+    local php_extensions="php-curl php-gd php-xml php-mbstring php-zip php-intl php-soap php-bcmath php-xmlrpc php-imagick php-opcache"
+    local tools="curl wget unzip certbot python3-certbot-apache redis-server jq dnsutils net-tools htop nano vim git"
+    
+    info "Installing core LAMP components..."
+    if ! apt install -y $core_packages; then
+        error "Failed to install core LAMP components"
+    fi
+    
+    info "Installing PHP extensions..."
+    apt install -y $php_extensions || warn "Some PHP extensions may have failed to install"
+    
+    info "Installing additional tools..."
+    apt install -y $tools || warn "Some additional tools may have failed to install"
     
     systemctl enable apache2 mysql redis-server
     systemctl start apache2 mysql redis-server
@@ -464,56 +550,59 @@ EOF
 
 # Complete WordPress installation
 install_lamp_wordpress() {
-    # Get domains by type for proper menu display
-    local main_domains=()
-    local subdomains=()
-    local subdirectories=()
-    if [ -f "config.json" ]; then
-        main_domains=($(jq -r '.main_domains[]?' config.json 2>/dev/null))
-        subdomains=($(jq -r '.subdomains[]?' config.json 2>/dev/null))
-        subdirectory_domains=($(jq -r '.subdirectory_domains[]?' config.json 2>/dev/null))
-    fi
+    while true; do
+        # Get domains by type for proper menu display
+        local main_domains=()
+        local subdomains=()
+        local subdirectories=()
+        if [ -f "config.json" ]; then
+            main_domains=($(jq -r '.main_domains[]?' config.json 2>/dev/null))
+            subdomains=($(jq -r '.subdomains[]?' config.json 2>/dev/null))
+            subdirectory_domains=($(jq -r '.subdirectory_domains[]?' config.json 2>/dev/null))
+        fi
 
-    echo -e "${YELLOW}WordPress Installation Types:${NC}"
-    echo "1) Main Domain"
-    [ ${#main_domains[@]} -gt 0 ] && echo "   Existing main domains: ${main_domains[@]}"
-    echo "2) Subdomain"
-    [ ${#subdomains[@]} -gt 0 ] && echo "   Existing subdomains: ${subdomains[@]}"
-    echo "3) Subdirectory"
-    [ ${#subdirectory_domains[@]} -gt 0 ] && echo "   Existing subdirectories: ${subdirectory_domains[@]}"
-    echo "4) Back"
-    read -p "Select type (1-4): " choice
-    
-    case $choice in
-        1) get_inputs "main" || return ;;
-        2) get_inputs "subdomain" || return ;;
-        3)
-            if [ ${#subdirectory_domains[@]} -gt 0 ]; then
-                echo "Existing subdirectories:"
-                for i in "${!subdirectory_domains[@]}"; do
-                    echo "$((i+1))) ${subdirectory_domains[$i]}"
-                done
-                read -p "Select subdirectory (1-${#subdirectory_domains[@]}) or enter new: " subdir_choice
-                if [[ $subdir_choice =~ ^[0-9]+$ ]] && [ $subdir_choice -le ${#subdirectory_domains[@]} ]; then
-                    DOMAIN="${subdirectory_domains[$((subdir_choice-1))]}"
-                    MAIN_DOMAIN="${DOMAIN%/*}"
-                    INSTALL_TYPE="subdirectory"
-                    install_lamp
-                    install_wordpress
-                    create_vhost_ssl "$MAIN_DOMAIN" "/var/www/$MAIN_DOMAIN"
-                    setup_tools "/var/www/$MAIN_DOMAIN"
-                    save_config
-                    success "WordPress installation completed for subdirectory $DOMAIN!"
-                    echo -e "${GREEN}Main Domain: $MAIN_DOMAIN${NC}"
-                    echo -e "${GREEN}Subdirectory: $DOMAIN${NC}"
-                    read -p "Press Enter to continue..."
-                    return
+        echo -e "${YELLOW}WordPress Installation Types:${NC}"
+        echo "1) Main Domain"
+        [ ${#main_domains[@]} -gt 0 ] && echo "   Existing main domains: ${main_domains[@]}"
+        echo "2) Subdomain"
+        [ ${#subdomains[@]} -gt 0 ] && echo "   Existing subdomains: ${subdomains[@]}"
+        echo "3) Subdirectory"
+        [ ${#subdirectory_domains[@]} -gt 0 ] && echo "   Existing subdirectories: ${subdirectory_domains[@]}"
+        echo "4) Back"
+        read -p "Select type (1-4): " choice
+        
+        case $choice in
+            1) get_inputs "main" || continue; break ;;
+            2) get_inputs "subdomain" || continue; break ;;
+            3)
+                if [ ${#subdirectory_domains[@]} -gt 0 ]; then
+                    echo "Existing subdirectories:"
+                    for i in "${!subdirectory_domains[@]}"; do
+                        echo "$((i+1))) ${subdirectory_domains[$i]}"
+                    done
+                    read -p "Select subdirectory (1-${#subdirectory_domains[@]}) or enter new: " subdir_choice
+                    if [[ $subdir_choice =~ ^[0-9]+$ ]] && [ $subdir_choice -le ${#subdirectory_domains[@]} ]; then
+                        DOMAIN="${subdirectory_domains[$((subdir_choice-1))]}"
+                        MAIN_DOMAIN="${DOMAIN%/*}"
+                        INSTALL_TYPE="subdirectory"
+                        install_lamp
+                        install_wordpress
+                        create_vhost_ssl "$MAIN_DOMAIN" "/var/www/$MAIN_DOMAIN"
+                        setup_tools "/var/www/$MAIN_DOMAIN"
+                        save_config
+                        success "WordPress installation completed for subdirectory $DOMAIN!"
+                        echo -e "${GREEN}Main Domain: $MAIN_DOMAIN${NC}"
+                        echo -e "${GREEN}Subdirectory: $DOMAIN${NC}"
+                        read -p "Press Enter to continue..."
+                        return
+                    fi
                 fi
-            fi
-            get_inputs "subdirectory" || return ;;
-        4) return ;;
-        *) echo -e "${RED}Invalid option${NC}"; sleep 2; install_lamp_wordpress; return ;;
-    esac
+                get_inputs "subdirectory" || continue; break ;;
+            4) return ;;
+            *) echo -e "${RED}Invalid option. Please select 1-4.${NC}"; sleep 1; continue ;;
+        esac
+        break
+    done
     
     install_lamp
     install_wordpress
@@ -547,14 +636,7 @@ install_apache_ssl_only() {
     setup_new_domain
 }
 
-load_config() {
-    if [ -f "config.json" ]; then
-        MAIN_DOMAINS=$(jq -r '.main_domains[]?' config.json 2>/dev/null | tr '\n' ' ')
-        SUBDOMAINS=$(jq -r '.subdomains[]?' config.json 2>/dev/null | tr '\n' ' ')
-        SUBDIRECTORY_DOMAINS=$(jq -r '.subdirectory_domains[]?' config.json 2>/dev/null | tr '\n' ' ')
-        ADMIN_EMAIL=$(jq -r '.admin_email' config.json 2>/dev/null)
-    fi
-}
+
 setup_new_domain() {
     # Load available domains from config.json
     load_config
