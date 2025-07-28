@@ -102,11 +102,26 @@ test_connectivity() {
 
 # Function to check if a directory is a WordPress installation
 is_wordpress() {
-    if [ -f "${1}/wp-config.php" ]; then
+    local dir="${1}"
+    
+    # Check for wp-config.php (primary indicator)
+    if [ -f "${dir}/wp-config.php" ]; then
         return 0
-    else
-        return 1
     fi
+    
+    # Check for wp-config-sample.php and wp-includes (WordPress core files)
+    if [ -f "${dir}/wp-config-sample.php" ] && [ -d "${dir}/wp-includes" ] && [ -d "${dir}/wp-content" ]; then
+        log_message "Found WordPress installation without wp-config.php at: ${dir}"
+        return 0
+    fi
+    
+    # Check for WordPress core files as additional verification
+    if [ -f "${dir}/wp-load.php" ] && [ -f "${dir}/wp-blog-header.php" ] && [ -d "${dir}/wp-includes" ]; then
+        log_message "Found WordPress core files at: ${dir}"
+        return 0
+    fi
+    
+    return 1
 }
 
 # Function to check WP-CLI installation
@@ -175,6 +190,8 @@ discover_wordpress_sites() {
     local sites=()
     local site_types=()
     
+    log_message "Starting WordPress site discovery in ${WWW_PATH}"
+    
     if [ -d "${WWW_PATH}" ]; then
         for site_dir in "${WWW_PATH}"/*; do
             if [ -d "${site_dir}" ]; then
@@ -182,25 +199,77 @@ discover_wordpress_sites() {
                 
                 # Skip the html directory
                 if [ "${site_name}" = "html" ]; then
+                    log_message "Skipping html directory"
                     continue
                 fi
                 
+                log_message "Checking directory: ${site_name}"
+                
                 if is_wordpress "${site_dir}"; then
+                    log_message "Found WordPress installation: ${site_name}"
                     sites+=("${site_name}")
                     site_types+=("Main Domain")
                 else
+                    log_message "Not a WordPress installation, checking subdirectories in: ${site_name}"
                     # Check for subdirectory WordPress installations
+                    local found_subdir=false
                     for subdir in "${site_dir}"/*; do
                         if [ -d "${subdir}" ] && is_wordpress "${subdir}"; then
                             subdir_name=$(basename "${subdir}")
+                            log_message "Found WordPress in subdirectory: ${site_name}/${subdir_name}"
                             sites+=("${site_name}/${subdir_name}")
                             site_types+=("Subdirectory")
+                            found_subdir=true
                         fi
                     done
+                    
+                    if [ "$found_subdir" = false ]; then
+                        log_message "No WordPress installations found in subdirectories of: ${site_name}"
+                    fi
+                fi
+            fi
+        done
+    else
+        log_message "WWW_PATH directory does not exist: ${WWW_PATH}"
+    fi
+    
+    # Also check for WordPress installations that might be in Apache virtual hosts but not detected
+    log_message "Cross-referencing with Apache virtual host configurations..."
+    if [ -d "/etc/apache2/sites-available" ]; then
+        for vhost_file in /etc/apache2/sites-available/*.conf; do
+            if [ -f "$vhost_file" ] && [[ "$(basename "$vhost_file")" != "000-default.conf" ]] && [[ "$(basename "$vhost_file")" != "default-ssl.conf" ]]; then
+                local domain_name=$(basename "$vhost_file" .conf | sed 's/-le-ssl$//')
+                local doc_root=$(grep -i "DocumentRoot" "$vhost_file" | head -1 | awk '{print $2}' 2>/dev/null)
+                
+                if [ -n "$doc_root" ] && [ -d "$doc_root" ] && is_wordpress "$doc_root"; then
+                    # Check if this WordPress site is already in our list
+                    local already_found=false
+                    for existing_site in "${sites[@]}"; do
+                        if [[ "$existing_site" == "$domain_name" ]] || [[ "$doc_root" == "${WWW_PATH}/${existing_site}" ]] || [[ "$doc_root" == "${WWW_PATH}/${existing_site%/*}" ]]; then
+                            already_found=true
+                            break
+                        fi
+                    done
+                    
+                    if [ "$already_found" = false ]; then
+                        log_message "Found additional WordPress site from Apache config: ${domain_name} -> ${doc_root}"
+                        # Determine the site name based on document root
+                        if [[ "$doc_root" == "${WWW_PATH}/"* ]]; then
+                            local relative_path="${doc_root#${WWW_PATH}/}"
+                            sites+=("${relative_path}")
+                            if [[ "$relative_path" == *"/"* ]]; then
+                                site_types+=("Subdirectory")
+                            else
+                                site_types+=("Main Domain")
+                            fi
+                        fi
+                    fi
                 fi
             fi
         done
     fi
+    
+    log_message "WordPress site discovery completed. Found ${#sites[@]} sites."
     
     # Return the arrays (using global variables for simplicity)
     DISCOVERED_SITES=("${sites[@]}")
@@ -242,6 +311,39 @@ backup_wordpress() {
     done
     echo -e "  $((${#DISCOVERED_SITES[@]}+1))) ${YELLOW}Backup ALL websites${NC}"
     echo -e "  $((${#DISCOVERED_SITES[@]}+2))) ${RED}Cancel${NC}"
+    echo "----------------------------------------"
+    
+    # Show additional info about configured domains
+    echo -e "${BLUE}ℹ Additional Information:${NC}"
+    local all_domains=()
+    if [ -d "/etc/apache2/sites-available" ]; then
+        for vhost_file in /etc/apache2/sites-available/*.conf; do
+            if [ -f "$vhost_file" ] && [[ "$(basename "$vhost_file")" != "000-default.conf" ]] && [[ "$(basename "$vhost_file")" != "default-ssl.conf" ]]; then
+                local domain_name=$(basename "$vhost_file" .conf | sed 's/-le-ssl$//')
+                if [[ ! " ${all_domains[@]} " =~ " ${domain_name} " ]]; then
+                    all_domains+=("$domain_name")
+                fi
+            fi
+        done
+        
+        if [ ${#all_domains[@]} -gt 0 ]; then
+            echo -e "  ${BLUE}Configured domains in Apache:${NC}"
+            for domain in "${all_domains[@]}"; do
+                local has_wp=false
+                for wp_site in "${DISCOVERED_SITES[@]}"; do
+                    if [[ "$wp_site" == "$domain" ]] || [[ "$wp_site" == *"$domain"* ]]; then
+                        has_wp=true
+                        break
+                    fi
+                done
+                if [ "$has_wp" = true ]; then
+                    echo -e "    - ${GREEN}$domain${NC} (WordPress installed)"
+                else
+                    echo -e "    - ${YELLOW}$domain${NC} (No WordPress detected)"
+                fi
+            done
+        fi
+    fi
     echo "----------------------------------------"
     echo
     
