@@ -673,11 +673,7 @@ transfer_backups() {
     
     # Create the backup directory on the destination server if it doesn't exist
     info "Creating backup directory on destination server..."
-    if [ "$SSH_AUTH_METHOD" = "key" ]; then
-        ssh -o StrictHostKeyChecking=no -p ${SSH_PORT} ${DEST_USER}@${DEST_IP} "mkdir -p ${DEST_BACKUP_DIR}" || error_exit "Failed to create backup directory on destination"
-    else
-        ssh -o StrictHostKeyChecking=no -p ${SSH_PORT} ${DEST_USER}@${DEST_IP} "mkdir -p ${DEST_BACKUP_DIR}" || error_exit "Failed to create backup directory on destination"
-    fi
+    ssh -o StrictHostKeyChecking=no -p ${SSH_PORT} ${DEST_USER}@${DEST_IP} "mkdir -p ${DEST_BACKUP_DIR}" || error_exit "Failed to create backup directory on destination"
     
     # Ask which files to transfer
     echo -e "${CYAN}Transfer options:${NC}"
@@ -690,20 +686,86 @@ transfer_backups() {
     case $TRANSFER_OPTION in
         1)
             TRANSFER_PATTERN="*"
+            # Verify files exist
+            if [ -z "$(ls -A ${BACKUP_DIR}/ 2>/dev/null)" ]; then
+                warn "No files found in backup directory"
+                return
+            fi
             ;;
         2)
             TRANSFER_PATTERN="*.tar.gz"
+            # Verify .tar.gz files exist
+            if [ -z "$(ls ${BACKUP_DIR}/*.tar.gz 2>/dev/null)" ]; then
+                warn "No .tar.gz files found in backup directory"
+                return
+            fi
             ;;
         3)
             TRANSFER_PATTERN="*.dump"
+            # Verify .dump files exist
+            if [ -z "$(ls ${BACKUP_DIR}/*.dump 2>/dev/null)" ]; then
+                warn "No .dump files found in backup directory"
+                return
+            fi
             ;;
         4)
             echo "Available files:"
-            ls -1 "$BACKUP_DIR"/ 2>/dev/null | nl
-            read -p "Enter file numbers to transfer (space-separated): " FILE_NUMBERS
-            # This would need additional logic to handle specific file selection
-            TRANSFER_PATTERN="*"
-            warn "Specific file selection not implemented yet. Transferring all files."
+            readarray -t available_files < <(find "$BACKUP_DIR" -maxdepth 1 -type f \( -name "*.tar.gz" -o -name "*.dump" -o -name "*.sql" -o -name "*.zip" \) 2>/dev/null | sort)
+            
+            if [ ${#available_files[@]} -eq 0 ]; then
+                warn "No backup files found in $BACKUP_DIR"
+                TRANSFER_PATTERN=""
+            else
+                for i in "${!available_files[@]}"; do
+                    filename=$(basename "${available_files[$i]}")
+                    filesize=$(du -sh "${available_files[$i]}" 2>/dev/null | cut -f1 || echo "unknown")
+                    echo "  $((i+1))) $filename ($filesize)"
+                done
+                
+                read -p "Enter file numbers to transfer (space-separated, e.g., '1 3 5' or '1-3'): " FILE_NUMBERS
+                
+                if [[ -z "$FILE_NUMBERS" ]]; then
+                    warn "No files selected."
+                    TRANSFER_PATTERN=""
+                else
+                    # Parse file numbers and build list of selected files
+                    selected_files=()
+                    
+                    # Clean up input and handle ranges
+                    FILE_NUMBERS=$(echo "$FILE_NUMBERS" | sed -e 's/,/ /g' -e 's/  */ /g')
+                    
+                    for num_part in $FILE_NUMBERS; do
+                        if [[ "$num_part" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+                            # Handle range like "1-3"
+                            start=${BASH_REMATCH[1]}
+                            end=${BASH_REMATCH[2]}
+                            for j in $(seq "$start" "$end"); do
+                                if [ "$j" -ge 1 ] && [ "$j" -le "${#available_files[@]}" ]; then
+                                    selected_files+=("${available_files[$((j-1))]}")
+                                fi
+                            done
+                        elif [[ "$num_part" =~ ^[0-9]+$ ]]; then
+                            # Handle single number
+                            if [ "$num_part" -ge 1 ] && [ "$num_part" -le "${#available_files[@]}" ]; then
+                                selected_files+=("${available_files[$((num_part-1))]}")
+                            fi
+                        fi
+                    done
+                    
+                    if [ ${#selected_files[@]} -eq 0 ]; then
+                        warn "No valid file numbers selected."
+                        TRANSFER_PATTERN=""
+                    else
+                        info "Selected files for transfer:"
+                        for file in "${selected_files[@]}"; do
+                            echo "  - $(basename "$file")"
+                        done
+                        
+                        # Set TRANSFER_PATTERN to empty to use selected_files array instead
+                        TRANSFER_PATTERN="SELECTIVE"
+                    fi
+                fi
+            fi
             ;;
         *)
             TRANSFER_PATTERN="*"
@@ -712,27 +774,99 @@ transfer_backups() {
     esac
     
     # Transfer the backup files
-    info "Transferring backup files (pattern: $TRANSFER_PATTERN)..."
-    
-    if [ "$SSH_AUTH_METHOD" = "key" ]; then
-        rsync -avz --progress -e "ssh -o StrictHostKeyChecking=no -p ${SSH_PORT}" \
-            ${BACKUP_DIR}/${TRANSFER_PATTERN} ${DEST_USER}@${DEST_IP}:${DEST_BACKUP_DIR}/ || error_exit "Failed to transfer backup files"
+    if [ "$TRANSFER_PATTERN" = "SELECTIVE" ]; then
+        info "Transferring selected backup files..."
+        
+        # Transfer each selected file individually
+        transfer_failed=false
+        for file in "${selected_files[@]}"; do
+            filename=$(basename "$file")
+            info "Transferring: $filename"
+            
+            if [ "$SSH_AUTH_METHOD" = "key" ]; then
+                if ! rsync -avz --progress -e "ssh -o StrictHostKeyChecking=no -p ${SSH_PORT}" \
+                    "$file" ${DEST_USER}@${DEST_IP}:${DEST_BACKUP_DIR}/; then
+                    warn "Failed to transfer: $filename"
+                    transfer_failed=true
+                fi
+            else
+                if ! rsync -avz --progress -e "ssh -o StrictHostKeyChecking=no -p ${SSH_PORT}" \
+                    "$file" ${DEST_USER}@${DEST_IP}:${DEST_BACKUP_DIR}/; then
+                    warn "Failed to transfer: $filename"
+                    transfer_failed=true
+                fi
+            fi
+        done
+        
+        if [ "$transfer_failed" = true ]; then
+            error_exit "Some files failed to transfer"
+        fi
+    elif [ -n "$TRANSFER_PATTERN" ]; then
+        info "Transferring backup files (pattern: $TRANSFER_PATTERN)..."
+        
+        if [ "$SSH_AUTH_METHOD" = "key" ]; then
+            rsync -avz --progress -e "ssh -o StrictHostKeyChecking=no -p ${SSH_PORT}" \
+                ${BACKUP_DIR}/${TRANSFER_PATTERN} ${DEST_USER}@${DEST_IP}:${DEST_BACKUP_DIR}/ || error_exit "Failed to transfer backup files"
+        else
+            rsync -avz --progress -e "ssh -o StrictHostKeyChecking=no -p ${SSH_PORT}" \
+                ${BACKUP_DIR}/${TRANSFER_PATTERN} ${DEST_USER}@${DEST_IP}:${DEST_BACKUP_DIR}/ || error_exit "Failed to transfer backup files"
+        fi
     else
-        rsync -avz --progress -e "ssh -o StrictHostKeyChecking=no -p ${SSH_PORT}" \
-            ${BACKUP_DIR}/${TRANSFER_PATTERN} ${DEST_USER}@${DEST_IP}:${DEST_BACKUP_DIR}/ || error_exit "Failed to transfer backup files"
+        warn "No files selected for transfer."
+        return
     fi
     
     # Verify transfer
     info "Verifying transfer..."
-    if [ "$SSH_AUTH_METHOD" = "key" ]; then
-        REMOTE_FILES=$(ssh -o StrictHostKeyChecking=no -p ${SSH_PORT} ${DEST_USER}@${DEST_IP} "ls -1 ${DEST_BACKUP_DIR}/ 2>/dev/null | wc -l")
+    
+    if [ "$TRANSFER_PATTERN" = "SELECTIVE" ]; then
+        # For selective transfers, verify each transferred file exists on remote
+        info "Verifying selective file transfer..."
+        verification_failed=false
+        
+        for file in "${selected_files[@]}"; do
+            filename=$(basename "$file")
+            if [ "$SSH_AUTH_METHOD" = "key" ]; then
+                if ! ssh -o StrictHostKeyChecking=no -p ${SSH_PORT} ${DEST_USER}@${DEST_IP} "test -f ${DEST_BACKUP_DIR}/$filename" 2>/dev/null; then
+                    warn "Verification failed for: $filename"
+                    verification_failed=true
+                fi
+            else
+                if ! ssh -o StrictHostKeyChecking=no -p ${SSH_PORT} ${DEST_USER}@${DEST_IP} "test -f ${DEST_BACKUP_DIR}/$filename" 2>/dev/null; then
+                    warn "Verification failed for: $filename"
+                    verification_failed=true
+                fi
+            fi
+        done
+        
+        if [ "$verification_failed" = true ]; then
+            warn "Some files failed verification on remote server"
+        else
+            success "All selected files verified successfully on remote server"
+        fi
     else
-        REMOTE_FILES=$(ssh -o StrictHostKeyChecking=no -p ${SSH_PORT} ${DEST_USER}@${DEST_IP} "ls -1 ${DEST_BACKUP_DIR}/ 2>/dev/null | wc -l")
+        # For pattern-based transfers, use the original logic
+        if [ "$SSH_AUTH_METHOD" = "key" ]; then
+            REMOTE_FILES=$(ssh -o StrictHostKeyChecking=no -p ${SSH_PORT} ${DEST_USER}@${DEST_IP} "ls -1 ${DEST_BACKUP_DIR}/ 2>/dev/null | wc -l")
+        else
+            REMOTE_FILES=$(ssh -o StrictHostKeyChecking=no -p ${SSH_PORT} ${DEST_USER}@${DEST_IP} "ls -1 ${DEST_BACKUP_DIR}/ 2>/dev/null | wc -l")
+        fi
+        
+        case $TRANSFER_OPTION in
+            1) # All files
+                LOCAL_FILES=$(ls -1 ${BACKUP_DIR}/ 2>/dev/null | wc -l)
+                info "Local files: $LOCAL_FILES, Remote files: $REMOTE_FILES"
+                ;;
+            2) # WordPress backups only
+                LOCAL_FILES=$(find ${BACKUP_DIR} -maxdepth 1 -name "*.tar.gz" 2>/dev/null | wc -l)
+                info "Local .tar.gz files: $LOCAL_FILES, Total remote files: $REMOTE_FILES"
+                ;;
+            3) # Database backups only
+                LOCAL_FILES=$(find ${BACKUP_DIR} -maxdepth 1 -name "*.dump" 2>/dev/null | wc -l)
+                info "Local .dump files: $LOCAL_FILES, Total remote files: $REMOTE_FILES"
+                ;;
+        esac
     fi
-    
-    LOCAL_FILES=$(ls -1 ${BACKUP_DIR}/ 2>/dev/null | wc -l)
-    
-    info "Local files: $LOCAL_FILES, Remote files: $REMOTE_FILES"
     
     success "Backup transfer completed successfully!"
     info "Files transferred to: ${DEST_USER}@${DEST_IP}:${DEST_BACKUP_DIR}/"
