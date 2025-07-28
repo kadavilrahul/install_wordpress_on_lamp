@@ -28,11 +28,76 @@ show_header() {
 
 # System checks
 check_root() { [[ $EUID -ne 0 ]] && error "This script must be run as root (use sudo)"; }
+
+# Prepare system for installation
+prepare_system() {
+    info "Preparing system for installation..."
+    export DEBIAN_FRONTEND=noninteractive
+    
+    # Fix any interrupted dpkg configurations
+    info "Fixing any broken package configurations..."
+    dpkg --configure -a 2>/dev/null || true
+    apt --fix-broken install -y 2>/dev/null || true
+    
+    # Clean package cache
+    apt clean 2>/dev/null || true
+    
+    # Update package lists with retries
+    info "Updating package lists..."
+    local retry_count=0
+    while [ $retry_count -lt 3 ]; do
+        if apt update -y 2>/dev/null; then
+            break
+        else
+            warn "Package update failed, retrying... ($((retry_count + 1))/3)"
+            sleep 5
+            ((retry_count++))
+        fi
+    done
+    
+    if [ $retry_count -eq 3 ]; then
+        error "Failed to update package lists after 3 attempts. Please check your internet connection."
+    fi
+    
+    success "System prepared successfully"
+}
+
 check_system() {
     info "Checking system requirements..."
-    ! grep -q "Ubuntu" /etc/os-release && warn "This script is designed for Ubuntu"
-    [ "$(df / | awk 'NR==2 {print $4}')" -lt 5242880 ] && error "Insufficient disk space. At least 5GB required"
-    ! ping -c 1 google.com &>/dev/null && error "No internet connection detected"
+    
+    # Check OS
+    if ! grep -q "Ubuntu" /etc/os-release; then
+        warn "This script is designed for Ubuntu. Other distributions may not work correctly."
+    else
+        local ubuntu_version=$(grep VERSION_ID /etc/os-release | cut -d'"' -f2)
+        info "Detected Ubuntu $ubuntu_version"
+    fi
+    
+    # Check disk space (at least 5GB free)
+    local free_space=$(df / | awk 'NR==2 {print $4}')
+    if [ "$free_space" -lt 5242880 ]; then
+        error "Insufficient disk space. At least 5GB required, but only $(($free_space / 1024 / 1024))GB available."
+    fi
+    
+    # Check memory (at least 1GB)
+    local total_mem=$(free -m | awk 'NR==2{print $2}')
+    if [ "$total_mem" -lt 1024 ]; then
+        warn "Low memory detected (${total_mem}MB). WordPress may run slowly with less than 1GB RAM."
+    fi
+    
+    # Check internet connectivity
+    info "Testing internet connectivity..."
+    if ! ping -c 1 -W 5 8.8.8.8 &>/dev/null; then
+        error "No internet connection detected. Please check your network connection."
+    fi
+    
+    # Test DNS resolution
+    if ! nslookup google.com &>/dev/null; then
+        warn "DNS resolution may be slow or failing"
+    fi
+    
+    # Prepare system
+    prepare_system
     
     # Install essential tools if missing
     local missing_tools=()
@@ -42,30 +107,28 @@ check_system() {
     command -v wget >/dev/null || missing_tools+=("wget")
     command -v nano >/dev/null || missing_tools+=("nano")
     command -v htop >/dev/null || missing_tools+=("htop")
+    command -v unzip >/dev/null || missing_tools+=("unzip")
     
     if [ ${#missing_tools[@]} -gt 0 ]; then
         info "Installing essential tools: ${missing_tools[*]}"
-        export DEBIAN_FRONTEND=noninteractive
-        
-        # Fix any interrupted dpkg configurations
-        dpkg --configure -a 2>/dev/null || true
-        
-        # Update package lists
-        apt update -qq 2>/dev/null || apt update
         
         # Install missing tools with better error handling
         if apt install -y "${missing_tools[@]}" 2>/dev/null; then
             success "Essential tools installed successfully"
         else
-            warn "Some tools may have failed to install, but continuing..."
+            warn "Some tools may have failed to install, trying individually..."
             # Try installing individually
             for tool in "${missing_tools[@]}"; do
-                apt install -y "$tool" 2>/dev/null || warn "Failed to install $tool"
+                if apt install -y "$tool" 2>/dev/null; then
+                    success "Installed $tool"
+                else
+                    warn "Failed to install $tool"
+                fi
             done
         fi
     fi
     
-    success "System requirements check passed"
+    success "System requirements check completed"
 }
 
 # Configuration management
@@ -317,63 +380,149 @@ install_lamp() {
     info "Installing LAMP stack..."
     export DEBIAN_FRONTEND=noninteractive
     
-    # Fix any interrupted dpkg configurations
+    # Clean up any broken installations first
+    info "Cleaning up any broken package installations..."
     dpkg --configure -a 2>/dev/null || true
+    apt --fix-broken install -y 2>/dev/null || true
+    
+    # Remove any broken MySQL/Apache installations
+    info "Removing any broken installations..."
+    apt remove --purge mysql-server* mysql-client* mysql-common apache2* libapache2-mod-php* -y 2>/dev/null || true
+    apt autoremove -y 2>/dev/null || true
+    
+    # Clean package cache
+    apt clean
     
     # Update system
     info "Updating system packages..."
-    if ! apt update -y; then
-        warn "Failed to update package lists, but continuing..."
+    local retry_count=0
+    while [ $retry_count -lt 3 ]; do
+        if apt update -y; then
+            break
+        else
+            warn "Package update failed, retrying... ($((retry_count + 1))/3)"
+            sleep 5
+            ((retry_count++))
+        fi
+    done
+    
+    # Upgrade system (non-interactive)
+    info "Upgrading system packages..."
+    apt upgrade -y || warn "Some packages failed to upgrade, but continuing..."
+    
+    # Install packages step by step with better error handling
+    info "Installing Apache web server..."
+    if ! apt install -y apache2; then
+        error "Failed to install Apache. Please check your internet connection and try again."
     fi
     
-    if ! apt upgrade -y; then
-        warn "Failed to upgrade system packages, but continuing..."
+    info "Installing MySQL database server..."
+    if ! apt install -y mysql-server; then
+        error "Failed to install MySQL. Please check your internet connection and try again."
     fi
     
-    # Install packages in groups for better error handling
-    local core_packages="apache2 mysql-server php libapache2-mod-php php-mysql"
+    info "Installing PHP and core extensions..."
+    local php_core="php libapache2-mod-php php-mysql php-cli"
+    if ! apt install -y $php_core; then
+        error "Failed to install PHP core components."
+    fi
+    
+    info "Installing additional PHP extensions..."
     local php_extensions="php-curl php-gd php-xml php-mbstring php-zip php-intl php-soap php-bcmath php-xmlrpc php-imagick php-opcache"
-    local tools="curl wget unzip certbot python3-certbot-apache redis-server jq dnsutils net-tools htop nano vim git"
-    
-    info "Installing core LAMP components..."
-    if ! apt install -y $core_packages; then
-        error "Failed to install core LAMP components"
-    fi
-    
-    info "Installing PHP extensions..."
-    apt install -y $php_extensions || warn "Some PHP extensions may have failed to install"
+    apt install -y $php_extensions || warn "Some PHP extensions may have failed to install, but continuing..."
     
     info "Installing additional tools..."
-    apt install -y $tools || warn "Some additional tools may have failed to install"
+    local tools="curl wget unzip certbot python3-certbot-apache redis-server jq dnsutils net-tools htop nano vim git"
+    apt install -y $tools || warn "Some additional tools may have failed to install, but continuing..."
     
-    systemctl enable apache2 mysql redis-server
-    systemctl start apache2 mysql redis-server
-    a2enmod rewrite ssl headers || warn "Failed to enable Apache modules"
+    # Enable and start services
+    info "Enabling and starting services..."
+    systemctl enable apache2 mysql redis-server 2>/dev/null || warn "Failed to enable some services"
+    systemctl start apache2 mysql redis-server 2>/dev/null || warn "Failed to start some services"
     
-    # Secure MySQL - check if password already exists
+    # Wait for MySQL to be ready
+    info "Waiting for MySQL to be ready..."
+    local mysql_ready=0
+    for i in {1..30}; do
+        if systemctl is-active --quiet mysql; then
+            mysql_ready=1
+            break
+        fi
+        sleep 2
+    done
+    
+    if [ $mysql_ready -eq 0 ]; then
+        error "MySQL failed to start properly"
+    fi
+    
+    # Enable Apache modules
+    info "Enabling Apache modules..."
+    a2enmod rewrite ssl headers 2>/dev/null || warn "Failed to enable some Apache modules"
+    systemctl reload apache2 2>/dev/null || warn "Failed to reload Apache"
+    
+    # Secure MySQL installation
+    info "Securing MySQL installation..."
+    # Wait a bit more for MySQL to be fully ready
+    sleep 5
+    
+    # Check if MySQL has no root password (fresh installation)
     if mysql -e "SELECT 1;" 2>/dev/null; then
-        # MySQL has no password - set the new one
-        mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$DB_ROOT_PASSWORD';" || error "Failed to set MySQL password"
-        MYSQL_AUTH="-u root -p$DB_ROOT_PASSWORD"
-        info "MySQL root password set successfully"
+        info "Setting MySQL root password..."
+        if mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$DB_ROOT_PASSWORD';" 2>/dev/null; then
+            MYSQL_AUTH="-u root -p$DB_ROOT_PASSWORD"
+            success "MySQL root password set successfully"
+        else
+            error "Failed to set MySQL root password"
+        fi
     else
-        # MySQL already has a password - test if user provided the correct existing one
+        # MySQL already has a password - test if user provided the correct one
         if mysql -u root -p"$DB_ROOT_PASSWORD" -e "SELECT 1;" 2>/dev/null; then
             MYSQL_AUTH="-u root -p$DB_ROOT_PASSWORD"
             info "Using provided MySQL root password"
         else
-            warn "MySQL already has a different root password"
-            read -sp "Enter existing MySQL root password: " EXISTING_PASSWORD; echo
-            mysql -u root -p"$EXISTING_PASSWORD" -e "SELECT 1;" 2>/dev/null && DB_ROOT_PASSWORD="$EXISTING_PASSWORD" && MYSQL_AUTH="-u root -p$DB_ROOT_PASSWORD" || error "Invalid MySQL password"
+            warn "MySQL already has a different root password or connection failed"
+            echo "Please enter the existing MySQL root password:"
+            read -sp "MySQL root password: " EXISTING_PASSWORD; echo
+            if mysql -u root -p"$EXISTING_PASSWORD" -e "SELECT 1;" 2>/dev/null; then
+                DB_ROOT_PASSWORD="$EXISTING_PASSWORD"
+                MYSQL_AUTH="-u root -p$DB_ROOT_PASSWORD"
+                info "Using existing MySQL root password"
+            else
+                error "Invalid MySQL password provided"
+            fi
         fi
     fi
     
-    mysql $MYSQL_AUTH -e "DELETE FROM mysql.user WHERE User=''; DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1'); DROP DATABASE IF EXISTS test; FLUSH PRIVILEGES;" || warn "MySQL security setup had warnings"
+    # Clean up MySQL security
+    info "Cleaning up MySQL security settings..."
+    mysql $MYSQL_AUTH -e "DELETE FROM mysql.user WHERE User=''; DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1'); DROP DATABASE IF EXISTS test; FLUSH PRIVILEGES;" 2>/dev/null || warn "MySQL security cleanup had warnings"
     
-    if verify_apache_installed && verify_mysql_installed && verify_php_installed; then
-        success "LAMP stack installed successfully"
+    # Verify installations
+    info "Verifying LAMP stack installation..."
+    local lamp_ok=true
+    
+    if ! verify_apache_installed; then
+        warn "Apache verification failed"
+        lamp_ok=false
+    fi
+    
+    if ! verify_mysql_installed; then
+        warn "MySQL verification failed"
+        lamp_ok=false
+    fi
+    
+    if ! verify_php_installed; then
+        warn "PHP verification failed"
+        lamp_ok=false
+    fi
+    
+    if [ "$lamp_ok" = true ]; then
+        success "LAMP stack installed and verified successfully"
+        info "Apache: $(apache2 -v | head -n1)"
+        info "MySQL: $(mysql --version)"
+        info "PHP: $(php -v | head -n1)"
     else
-        warn "Failed to install LAMP stack completely"
+        error "LAMP stack installation verification failed"
     fi
 }
 
@@ -585,7 +734,10 @@ install_lamp_wordpress() {
                         DOMAIN="${subdirectory_domains[$((subdir_choice-1))]}"
                         MAIN_DOMAIN="${DOMAIN%/*}"
                         INSTALL_TYPE="subdirectory"
-                        install_lamp
+                        if ! install_lamp_with_recovery; then
+                            error "LAMP installation failed. Please check the logs and try again."
+                            return 1
+                        fi
                         install_wordpress
                         create_vhost_ssl "$MAIN_DOMAIN" "/var/www/$MAIN_DOMAIN"
                         setup_tools "/var/www/$MAIN_DOMAIN"
@@ -604,7 +756,12 @@ install_lamp_wordpress() {
         break
     done
     
-    install_lamp
+    # Use the recovery-enabled installation
+    if ! install_lamp_with_recovery; then
+        error "LAMP installation failed. Please check the logs and try again."
+        return 1
+    fi
+    
     install_wordpress
     
     local target_domain="$DOMAIN"
@@ -1352,29 +1509,38 @@ set_wordpress_permissions() {
 
 # Verify Apache installation
 verify_apache_installed() {
-    if systemctl is-active --quiet apache2; then
-        return 0 # Apache is installed and running
-    else
-        return 1 # Apache is not installed or not running
+    # Check if Apache is installed and running
+    if command -v apache2 &>/dev/null && systemctl is-active --quiet apache2; then
+        # Also check if Apache configuration directory exists
+        if [ -d "/etc/apache2" ] && [ -f "/etc/apache2/apache2.conf" ]; then
+            return 0 # Apache is properly installed and running
+        fi
     fi
+    return 1 # Apache is not properly installed or not running
 }
 
 # Verify MySQL installation
 verify_mysql_installed() {
-    if systemctl is-active --quiet mysql; then
-        return 0 # MySQL is installed and running
-    else
-        return 1 # MySQL is not installed or not running
+    # Check if MySQL is installed and running
+    if command -v mysql &>/dev/null && systemctl is-active --quiet mysql; then
+        # Try to connect to MySQL to ensure it's working
+        if mysql -e "SELECT 1;" 2>/dev/null || mysql -u root -p"$DB_ROOT_PASSWORD" -e "SELECT 1;" 2>/dev/null; then
+            return 0 # MySQL is properly installed and accessible
+        fi
     fi
+    return 1 # MySQL is not properly installed or not accessible
 }
 
 # Verify PHP installation
 verify_php_installed() {
+    # Check if PHP is installed and Apache module is loaded
     if command -v php &>/dev/null; then
-        return 0 # PHP is installed
-    else
-        return 1 # PHP is not installed
+        # Check if PHP Apache module exists
+        if [ -f "/etc/apache2/mods-available/php*.load" ] || apache2ctl -M 2>/dev/null | grep -q php; then
+            return 0 # PHP is properly installed with Apache module
+        fi
     fi
+    return 1 # PHP is not properly installed or Apache module missing
 }
 
 # Verify WordPress installation
@@ -1484,6 +1650,65 @@ system_status_check() {
         [ -d "$site" ] && [ -f "$site/wp-config.php" ] && echo -e "WordPress: ${GREEN}$(basename "$site")${NC}"
     done
     read -p "Press Enter to continue..."
+}
+
+# Recovery function for failed installations
+recover_failed_installation() {
+    warn "Attempting to recover from failed installation..."
+    
+    # Stop services that might be running
+    systemctl stop apache2 mysql redis-server 2>/dev/null || true
+    
+    # Clean up broken packages
+    info "Cleaning up broken packages..."
+    dpkg --configure -a 2>/dev/null || true
+    apt --fix-broken install -y 2>/dev/null || true
+    
+    # Remove partially installed packages
+    apt remove --purge mysql-server* mysql-client* mysql-common apache2* libapache2-mod-php* php* redis-server -y 2>/dev/null || true
+    apt autoremove -y 2>/dev/null || true
+    apt autoclean 2>/dev/null || true
+    
+    # Clean package cache
+    apt clean
+    
+    # Remove configuration directories if they exist but are broken
+    [ -d "/etc/mysql" ] && rm -rf /etc/mysql 2>/dev/null || true
+    [ -d "/etc/apache2" ] && rm -rf /etc/apache2 2>/dev/null || true
+    [ -d "/var/lib/mysql" ] && rm -rf /var/lib/mysql 2>/dev/null || true
+    
+    success "System cleaned up. You can now try the installation again."
+}
+
+# Installation wrapper with error handling
+install_lamp_with_recovery() {
+    local max_attempts=2
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        info "Installation attempt $attempt of $max_attempts"
+        
+        if install_lamp; then
+            success "LAMP installation completed successfully!"
+            return 0
+        else
+            warn "Installation attempt $attempt failed"
+            
+            if [ $attempt -lt $max_attempts ]; then
+                if confirm "Would you like to clean up and try again?"; then
+                    recover_failed_installation
+                    ((attempt++))
+                    continue
+                else
+                    error "Installation cancelled by user"
+                fi
+            else
+                error "Installation failed after $max_attempts attempts"
+            fi
+        fi
+    done
+    
+    return 1
 }
 
 # Main execution
