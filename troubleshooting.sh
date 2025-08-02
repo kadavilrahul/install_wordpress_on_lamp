@@ -1,277 +1,291 @@
 #!/bin/bash
 
-# Troubleshooting Tools - Minimal Version
-set -e
+#=============================================================================
+# WordPress Troubleshooting Script
+#=============================================================================
 
 # Colors
-R='\033[0;31m'; G='\033[0;32m'; Y='\033[1;33m'; B='\033[0;34m'; C='\033[0;36m'; N='\033[0m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-# Utils
-info() { echo -e "${B}[INFO]${N} $1"; }
-ok() { echo -e "${G}[OK]${N} $1"; }
-warn() { echo -e "${Y}[WARN]${N} $1"; }
-err() { echo -e "${R}[ERROR]${N} $1" >&2; }
+# Utility functions
+info() { echo -e "${BLUE}ℹ $1${NC}"; }
+success() { echo -e "${GREEN}✓ $1${NC}"; }
+warning() { echo -e "${YELLOW}⚠ $1${NC}"; }
+error() { echo -e "${RED}✗ Error: $1${NC}" >&2; }
 
-# Check services
-check_services() {
-    echo -e "${C}Service Status${N}"
-    echo "=============="
+# Check for root
+check_root() {
+    [[ $EUID -ne 0 ]] && error "This script must be run as root (use sudo)" && exit 1
+}
+
+# Find WordPress installations
+find_wp_installs() {
+    local wp_dirs=()
+    local default_path="/var/www"
     
-    local services=("apache2" "mysql" "ssh" "ufw")
+    info "Scanning for WordPress installations in $default_path..."
     
-    for service in "${services[@]}"; do
-        if systemctl is-active --quiet "$service" 2>/dev/null; then
-            ok "$service: Running"
-        else
-            err "$service: Not running"
-        fi
+    # Find directories containing both wp-config.php and wp-content
+    while IFS= read -r dir; do
+        [ -f "$dir/wp-config.php" ] && [ -d "$dir/wp-content" ] && wp_dirs+=("$dir")
+    done < <(find "$default_path" -maxdepth 3 -type d -print 2>/dev/null)
+    
+    if [ ${#wp_dirs[@]} -eq 0 ]; then
+        warning "No WordPress installations found in $default_path"
+        read -p "Enter WordPress path manually (e.g. /var/www/example.com): " WP_PATH
+        [ -z "$WP_PATH" ] && error "Path cannot be empty" && return 1
+        [ ! -d "$WP_PATH" ] && error "Directory '$WP_PATH' not found" && return 1
+        return 0
+    fi
+    
+    echo -e "\n${BLUE}=== Found WordPress Installations ===${NC}"
+    for i in "${!wp_dirs[@]}"; do
+        echo "$((i+1)). ${wp_dirs[$i]}"
     done
-}
-
-# Check ports
-check_ports() {
-    echo -e "${C}Port Status${N}"
-    echo "==========="
+    echo "$(( ${#wp_dirs[@]} + 1 )). Enter custom path"
     
-    local ports=("80:HTTP" "443:HTTPS" "22:SSH" "3306:MySQL")
-    
-    for port_info in "${ports[@]}"; do
-        local port=$(echo "$port_info" | cut -d: -f1)
-        local name=$(echo "$port_info" | cut -d: -f2)
-        
-        if netstat -tuln 2>/dev/null | grep -q ":$port "; then
-            ok "$name (port $port): Open"
-        else
-            warn "$name (port $port): Closed"
-        fi
-    done
-}
-
-# Check disk space
-check_disk() {
-    echo -e "${C}Disk Usage${N}"
-    echo "=========="
-    
-    df -h | grep -E '^/dev/' | while read line; do
-        local usage=$(echo "$line" | awk '{print $5}' | sed 's/%//')
-        local mount=$(echo "$line" | awk '{print $6}')
-        local used=$(echo "$line" | awk '{print $3}')
-        local avail=$(echo "$line" | awk '{print $4}')
-        
-        if [ "$usage" -gt 90 ]; then
-            err "$mount: ${usage}% full ($used used, $avail available)"
-        elif [ "$usage" -gt 80 ]; then
-            warn "$mount: ${usage}% full ($used used, $avail available)"
-        else
-            ok "$mount: ${usage}% full ($used used, $avail available)"
-        fi
-    done
-}
-
-# Check memory
-check_memory() {
-    echo -e "${C}Memory Usage${N}"
-    echo "============"
-    
-    local mem_info=$(free -m)
-    local total=$(echo "$mem_info" | awk 'NR==2{print $2}')
-    local used=$(echo "$mem_info" | awk 'NR==2{print $3}')
-    local free=$(echo "$mem_info" | awk 'NR==2{print $4}')
-    local usage=$((used * 100 / total))
-    
-    if [ "$usage" -gt 90 ]; then
-        err "Memory: ${usage}% used (${used}MB/${total}MB)"
-    elif [ "$usage" -gt 80 ]; then
-        warn "Memory: ${usage}% used (${used}MB/${total}MB)"
+    read -p "Select installation (1-${#wp_dirs[@]}): " choice
+    if [[ $choice =~ ^[0-9]+$ ]] && [ $choice -le ${#wp_dirs[@]} ]; then
+        WP_PATH="${wp_dirs[$((choice-1))]}"
+        success "Selected: $WP_PATH"
+        return 0
+    elif [ $choice -eq $(( ${#wp_dirs[@]} + 1 )) ]; then
+        read -p "Enter WordPress path manually (e.g. /var/www/example.com): " WP_PATH
+        [ -z "$WP_PATH" ] && error "Path cannot be empty" && return 1
+        [ ! -d "$WP_PATH" ] && error "Directory '$WP_PATH' not found" && return 1
+        return 0
     else
-        ok "Memory: ${usage}% used (${used}MB/${total}MB)"
-    fi
-    
-    # Check swap
-    local swap_total=$(echo "$mem_info" | awk 'NR==3{print $2}')
-    if [ "$swap_total" -eq 0 ]; then
-        warn "No swap configured"
-    else
-        local swap_used=$(echo "$mem_info" | awk 'NR==3{print $3}')
-        ok "Swap: ${swap_used}MB/${swap_total}MB used"
+        error "Invalid selection"
+        return 1
     fi
 }
 
-# Check logs
-check_logs() {
-    echo -e "${C}Recent Errors${N}"
-    echo "============="
-    
-    # Apache errors
-    if [ -f /var/log/apache2/error.log ]; then
-        local apache_errors=$(tail -20 /var/log/apache2/error.log | grep -i error | wc -l)
-        if [ "$apache_errors" -gt 0 ]; then
-            warn "Apache: $apache_errors recent errors"
-            tail -5 /var/log/apache2/error.log | grep -i error || true
-        else
-            ok "Apache: No recent errors"
-        fi
-    fi
-    
-    # MySQL errors
-    if [ -f /var/log/mysql/error.log ]; then
-        local mysql_errors=$(tail -20 /var/log/mysql/error.log | grep -i error | wc -l)
-        if [ "$mysql_errors" -gt 0 ]; then
-            warn "MySQL: $mysql_errors recent errors"
-            tail -5 /var/log/mysql/error.log | grep -i error || true
-        else
-            ok "MySQL: No recent errors"
-        fi
-    fi
-    
-    # System errors
-    local sys_errors=$(journalctl --since "1 hour ago" --priority=err --no-pager -q | wc -l)
-    if [ "$sys_errors" -gt 0 ]; then
-        warn "System: $sys_errors recent errors"
-        journalctl --since "1 hour ago" --priority=err --no-pager -q | tail -3 || true
-    else
-        ok "System: No recent errors"
-    fi
-}
-
-# Test connectivity
-test_connectivity() {
-    echo -e "${C}Connectivity Test${N}"
-    echo "================="
-    
-    # Internet
-    if ping -c 1 -W 5 8.8.8.8 >/dev/null 2>&1; then
-        ok "Internet: Connected"
-    else
-        err "Internet: No connection"
-    fi
-    
-    # DNS
-    if nslookup google.com >/dev/null 2>&1; then
-        ok "DNS: Working"
-    else
-        err "DNS: Not working"
-    fi
-    
-    # Local services
-    if curl -s http://localhost >/dev/null 2>&1; then
-        ok "Apache: Responding"
-    else
-        err "Apache: Not responding"
-    fi
-    
-    if mysql -u root -proot123 -e "SELECT 1;" >/dev/null 2>&1; then
-        ok "MySQL: Connected"
-    else
-        err "MySQL: Connection failed"
-    fi
+# Get WordPress path
+get_wp_path() {
+    find_wp_installs
+    return $?
 }
 
 # Fix permissions
 fix_permissions() {
-    local web_dir="${1:-/var/www}"
-    
-    info "Fixing permissions for $web_dir..."
-    
-    if [ ! -d "$web_dir" ]; then
-        err "Directory not found: $web_dir"
-        return 1
+    info "Setting ownership to www-data:www-data..."
+    chown -R www-data:www-data "$WP_PATH" || { error "Failed to set ownership"; return 1; }
+
+    info "Setting base directory and file permissions..."
+    chmod -R u=rwX,go=rX "$WP_PATH" || { error "Failed to set base permissions"; return 1; }
+
+    if [ -d "$WP_PATH/wp-content" ]; then
+        info "Setting wp-content permissions..."
+        chmod -R g+w "$WP_PATH/wp-content" || { error "Failed to set wp-content permissions"; return 1; }
     fi
-    
-    # Set ownership
-    chown -R www-data:www-data "$web_dir"
-    
-    # Set permissions
-    find "$web_dir" -type d -exec chmod 755 {} \;
-    find "$web_dir" -type f -exec chmod 644 {} \;
-    
-    # WordPress specific
-    find "$web_dir" -name "wp-config.php" -exec chmod 600 {} \; 2>/dev/null || true
-    
-    ok "Permissions fixed"
+
+    if [ -f "$WP_PATH/wp-config.php" ]; then
+        info "Securing wp-config.php..."
+        chmod 640 "$WP_PATH/wp-config.php" || { error "Failed to secure wp-config.php"; return 1; }
+    fi
+
+    success "Permissions fixed successfully"
 }
 
-# Restart services
-restart_services() {
-    info "Restarting services..."
-    
-    local services=("apache2" "mysql")
-    
-    for service in "${services[@]}"; do
-        if systemctl restart "$service" 2>/dev/null; then
-            ok "$service restarted"
-        else
-            err "$service restart failed"
-        fi
-    done
-}
-
-# Full system check
-full_check() {
-    echo -e "${C}Full System Check${N}"
-    echo "================="
-    echo
-    
-    check_services
-    echo
-    check_ports
-    echo
-    check_disk
-    echo
-    check_memory
-    echo
-    check_logs
-    echo
-    test_connectivity
-}
-
-# Menu
-menu() {
-    echo -e "${C}Troubleshooting Tools${N}"
-    echo "1) Full System Check"
-    echo "2) Check Services"
-    echo "3) Check Ports"
-    echo "4) Check Disk Usage"
-    echo "5) Check Memory"
-    echo "6) Check Logs"
-    echo "7) Test Connectivity"
-    echo "8) Fix Permissions"
-    echo "9) Restart Services"
-    echo "0) Exit"
-    read -p "Select option: " choice
-    
+# Check service status
+check_service() {
+    local service=$1
+    info "Checking $service status..."
+    systemctl status "$service" --no-pager
+    read -p "Restart $service? (y/n): " choice
     case "$choice" in
-        1) full_check ;;
-        2) check_services ;;
-        3) check_ports ;;
-        4) check_disk ;;
-        5) check_memory ;;
-        6) check_logs ;;
-        7) test_connectivity ;;
-        8) 
-            read -p "Web directory (default: /var/www): " dir
-            fix_permissions "${dir:-/var/www}"
-            ;;
-        9) restart_services ;;
-        0) exit 0 ;;
-        *) warn "Invalid option" && menu ;;
+        y|Y) systemctl restart "$service" && success "$service restarted";;
+        *) info "Skipping $service restart";;
     esac
 }
 
-# Main
-case "${1:-menu}" in
-    check) full_check ;;
-    services) check_services ;;
-    ports) check_ports ;;
-    disk) check_disk ;;
-    memory) check_memory ;;
-    logs) check_logs ;;
-    connectivity) test_connectivity ;;
-    permissions) fix_permissions "$2" ;;
-    restart) restart_services ;;
-    menu) menu ;;
-    *) 
-        echo "Troubleshooting Tools"
-        echo "Usage: $0 [check|services|ports|disk|memory|logs|connectivity|permissions|restart|menu]"
-        ;;
-esac
+# Check system resources
+check_resources() {
+    info "Checking system resources..."
+    echo -e "\n${BLUE}=== Memory Usage ===${NC}"
+    free -h
+    
+    echo -e "\n${BLUE}=== Disk Space ===${NC}"
+    df -h
+    
+    echo -e "\n${BLUE}=== WordPress Directory Size ===${NC}"
+    du -sh "$WP_PATH"
+}
+
+# Check error logs
+check_logs() {
+    info "Checking error logs..."
+    
+    echo -e "\n${BLUE}=== Apache Error Log ===${NC}"
+    tail -n 20 /var/log/apache2/error.log
+    
+    local domain_log="/var/log/apache2/error_$(basename "$WP_PATH").log"
+    [ -f "$domain_log" ] && { 
+        echo -e "\n${BLUE}=== Domain Error Log ===${NC}"
+        tail -n 20 "$domain_log"
+    }
+    
+    local debug_log="$WP_PATH/wp-content/debug.log"
+    if [ -f "$debug_log" ]; then
+        echo -e "\n${BLUE}=== WordPress Debug Log ===${NC}"
+        grep -i "error\|fatal\|warning" "$debug_log" | tail -n 30
+    fi
+}
+
+# Manage plugins
+manage_plugins() {
+    info "Managing plugins..."
+    if ! command -v wp &> /dev/null; then
+        warning "WP-CLI not found. Install it or try manual plugin management."
+        return 1
+    fi
+    
+    read -p "Choose action: (1) Deactivate all (2) Reactivate all (3) Remove broken: " choice
+    case "$choice" in
+        1) wp plugin deactivate --all --allow-root --path="$WP_PATH" && success "All plugins deactivated";;
+        2) wp plugin activate --all --path="$WP_PATH" --allow-root && success "All plugins reactivated";;
+        3) 
+            read -p "Enter plugin name to remove: " plugin
+            rm -rf "$WP_PATH/wp-content/plugins/$plugin" && success "Plugin $plugin removed"
+            ;;
+        *) info "No action taken";;
+    esac
+}
+
+# Clean MySQL binary logs
+clean_mysql_logs() {
+    info "Cleaning MySQL binary logs..."
+    read -p "This will delete all binary logs. Continue? (y/n): " choice
+    case "$choice" in
+        y|Y)
+            mysql -u root -p -e "RESET MASTER;"
+            systemctl restart mysql
+            success "MySQL binary logs cleaned"
+            ;;
+        *) info "Skipping MySQL log cleanup";;
+    esac
+}
+
+# Database repair and optimization
+repair_database() {
+    info "Repairing and optimizing WordPress database..."
+    if ! command -v wp &> /dev/null; then
+        warning "WP-CLI not found. Install it to use this feature."
+        return 1
+    fi
+    
+    wp db repair --path="$WP_PATH" --allow-root && success "Database repaired"
+    wp db optimize --path="$WP_PATH" --allow-root && success "Database optimized"
+}
+
+# Redis troubleshooting
+redis_troubleshoot() {
+    info "Checking Redis configuration..."
+    if [ -f "$WP_PATH/wp-content/object-cache.php" ]; then
+        warning "Redis object-cache.php found - this might cause 'Error establishing a Redis connection'"
+        read -p "Disable Redis by removing object-cache.php? (y/n): " choice
+        case "$choice" in
+            y|Y)
+                rm -f "$WP_PATH/wp-content/object-cache.php"
+                success "Redis disabled - object-cache.php removed"
+                ;;
+            *) info "Redis remains enabled";;
+        esac
+    else
+        info "No Redis configuration found"
+    fi
+}
+
+# Toggle debug mode
+toggle_debug() {
+    local wp_config="$WP_PATH/wp-config.php"
+    [ ! -f "$wp_config" ] && error "wp-config.php not found" && return 1
+    
+    if grep -q "WP_DEBUG', true" "$wp_config"; then
+        info "Debug mode is currently ON"
+        read -p "Disable debug mode? (y/n): " choice
+        case "$choice" in
+            y|Y)
+                sed -i "s/WP_DEBUG', true/WP_DEBUG', false/" "$wp_config"
+                sed -i "s/WP_DEBUG_LOG', true/WP_DEBUG_LOG', false/" "$wp_config"
+                sed -i "s/WP_DEBUG_DISPLAY', true/WP_DEBUG_DISPLAY', false/" "$wp_config"
+                success "Debug mode disabled"
+                ;;
+            *) info "Debug mode remains enabled";;
+        esac
+    else
+        info "Debug mode is currently OFF"
+        read -p "Enable debug mode? (y/n): " choice
+        case "$choice" in
+            y|Y)
+                sed -i "/define( 'DB_COLLATE'/i define( 'WP_DEBUG', true );\ndefine( 'WP_DEBUG_LOG', true );\ndefine( 'WP_DEBUG_DISPLAY', false );" "$wp_config"
+                success "Debug mode enabled"
+                ;;
+            *) info "Debug mode remains disabled";;
+        esac
+    fi
+}
+
+# Verify file ownership
+verify_ownership() {
+    info "Verifying file ownership..."
+    local owner=$(stat -c '%U:%G' "$WP_PATH")
+    if [ "$owner" != "www-data:www-data" ]; then
+        warning "Current ownership: $owner (should be www-data:www-data)"
+        read -p "Fix ownership? (y/n): " choice
+        case "$choice" in
+            y|Y) fix_permissions;;
+            *) info "Ownership not changed";;
+        esac
+    else
+        success "Ownership is correct: www-data:www-data"
+    fi
+}
+
+# Main menu
+main_menu() {
+    echo -e "\n${BLUE}=== WordPress Troubleshooting Menu ===${NC}"
+    echo "  1) Fix permissions - Set correct file and folder permissions for WordPress"
+    echo "  2) Check service status (Apache/MySQL/PHP) - View and restart web server and database services"
+    echo "  3) Check system resources - Monitor memory usage, disk space, and directory sizes"
+    echo "  4) Check error logs - Review Apache, domain, and WordPress debug logs"
+    echo "  5) Manage plugins - Deactivate, activate, or remove WordPress plugins"
+    echo "  6) Clean MySQL binary logs - Remove MySQL binary logs to free up disk space"
+    echo "  7) Repair/Optimize database - Fix and optimize WordPress database tables"
+    echo "  8) Redis troubleshooting - Diagnose and fix Redis caching connection issues"
+    echo "  9) Toggle debug mode - Enable or disable WordPress debug logging"
+    echo "  10) Verify file ownership - Check and fix WordPress file ownership settings"
+    echo "  0) Exit - Return to main menu"
+    
+    read -p "Choose an option (0-10): " option
+    case "$option" in
+        1) fix_permissions;;
+        2)
+            check_service apache2
+            check_service mysql
+            check_service php8.3-fpm
+            ;;
+        3) check_resources;;
+        4) check_logs;;
+        5) manage_plugins;;
+        6) clean_mysql_logs;;
+        7) repair_database;;
+        8) redis_troubleshoot;;
+        9) toggle_debug;;
+        10) verify_ownership;;
+        0) exit 0;;
+        *) error "Invalid option";;
+    esac
+}
+
+# Main execution
+check_root
+if get_wp_path; then
+    while true; do
+        main_menu
+    done
+fi
