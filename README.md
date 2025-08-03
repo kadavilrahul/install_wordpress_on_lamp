@@ -8,7 +8,7 @@ Clone this repository to your server:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/install_wordpress_on_lamp.git && cd install_wordpress_on_lamp
+   git clone https://github.com/kadavilrahul/install_wordpress_on_lamp.git && cd install_wordpress_on_lamp
    ```
 
 2. **Create configuration file** from the sample, edit config.json with your settings
