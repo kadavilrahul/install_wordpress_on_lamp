@@ -6,7 +6,7 @@ A comprehensive LAMP stack management system for WordPress hosting with automate
 
 Clone this repository to your server:
 
-# Clone the repository
+1. **Clone the repository**
    ```bash
    git clone https://github.com/yourusername/install_wordpress_on_lamp.git && cd install_wordpress_on_lamp
    ```
