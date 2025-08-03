@@ -7,7 +7,7 @@
 # --- Globals & Colors ---
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
-CONFIG_FILE="$(dirname "${BASH_SOURCE[0]}")/config.json"
+CONFIG_FILE="$(dirname "${BASH_SOURCE[0]}")/../config.json"
 BACKUP_SOURCE="/website_backups"
 LOG_DIR="/var/log"
 

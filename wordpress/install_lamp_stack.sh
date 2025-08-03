@@ -133,7 +133,7 @@ check_system() {
 
 # Configuration management
 load_config() {
-    if [ -f "config.json" ]; then
+    if [ -f "$(dirname "${BASH_SOURCE[0]}")/../config.json" ]; then
         ADMIN_EMAIL=$(jq -r '.admin_email // ""' config.json)
         REDIS_MAX_MEMORY=$(jq -r '.redis_max_memory // "1"' config.json)
         DB_ROOT_PASSWORD=$(jq -r '.mysql_root_password // ""' config.json)
@@ -163,7 +163,7 @@ save_config() {
     [[ "$DOMAIN" == *"/"* ]] && domain_type="subdirectory_domains"
 
     # Create config.json if it doesn't exist
-    [ ! -f "config.json" ] && echo '{"main_domains":[],"subdomains":[],"subdirectory_domains":[],"mysql_root_password":"","admin_email":"","redis_max_memory":"1"}' > config.json
+    [ ! -f "$(dirname "${BASH_SOURCE[0]}")/../config.json" ] && echo '{"main_domains":[],"subdomains":[],"subdirectory_domains":[],"mysql_root_password":"","admin_email":"","redis_max_memory":"1"}' > config.json
 
     # Preserve existing values if current variables are empty
     local current_email="${ADMIN_EMAIL}"
@@ -201,7 +201,7 @@ get_inputs() {
     local main_domains=()
     local subdomains=()
     local subdirectories=()
-    if [ -f "config.json" ]; then
+    if [ -f "$(dirname "${BASH_SOURCE[0]}")/../config.json" ]; then
         main_domains=($(jq -r '.main_domains[]?' config.json 2>/dev/null))
         subdomains=($(jq -r '.subdomains[]?' config.json 2>/dev/null))
         subdirectories=($(jq -r '.subdirectory_domains[]?' config.json 2>/dev/null))
@@ -681,7 +681,7 @@ install_lamp_wordpress() {
         local main_domains=()
         local subdomains=()
         local subdirectories=()
-        if [ -f "config.json" ]; then
+        if [ -f "$(dirname "${BASH_SOURCE[0]}")/../config.json" ]; then
             main_domains=($(jq -r '.main_domains[]?' config.json 2>/dev/null))
             subdomains=($(jq -r '.subdomains[]?' config.json 2>/dev/null))
             subdirectory_domains=($(jq -r '.subdirectory_domains[]?' config.json 2>/dev/null))

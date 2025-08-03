@@ -3,7 +3,7 @@
 # MySQL Remote Access Configuration Script
 # Improved version with better security and error handling
 
-CONFIG_FILE="config.json"
+CONFIG_FILE="$(dirname "${BASH_SOURCE[0]}")/../config.json"
 
 # Function to log messages
 log_message() {

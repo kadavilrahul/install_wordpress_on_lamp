@@ -17,7 +17,7 @@ check_root() { [[ $EUID -ne 0 ]] && error "This script must be run as root (use 
 
 # Configuration management
 load_config() {
-    if [ -f "config.json" ]; then
+    if [ -f "$(dirname "${BASH_SOURCE[0]}")/../config.json" ]; then
         ADMIN_EMAIL=$(jq -r '.admin_email // ""' config.json)
         REDIS_MAX_MEMORY=$(jq -r '.redis_max_memory // "1"' config.json)
         DB_ROOT_PASSWORD=$(jq -r '.mysql_root_password // ""' config.json)

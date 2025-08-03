@@ -30,7 +30,7 @@ show_header() {
 
 # Configuration management
 load_config() {
-    if [ -f "config.json" ]; then
+    if [ -f "$(dirname "${BASH_SOURCE[0]}")/../config.json" ]; then
         ADMIN_EMAIL=$(jq -r '.admin_email // ""' config.json)
         REDIS_MAX_MEMORY=$(jq -r '.redis_max_memory // "1"' config.json)
         DB_ROOT_PASSWORD=$(jq -r '.mysql_root_password // ""' config.json)
@@ -60,7 +60,7 @@ save_config() {
     [[ "$DOMAIN" == *"/"* ]] && domain_type="subdirectory_domains"
 
     # Create config.json if it doesn't exist
-    [ ! -f "config.json" ] && echo '{"main_domains":[],"subdomains":[],"subdirectory_domains":[],"mysql_root_password":"","admin_email":"","redis_max_memory":"1"}' > config.json
+    [ ! -f "$(dirname "${BASH_SOURCE[0]}")/../config.json" ] && echo '{"main_domains":[],"subdomains":[],"subdirectory_domains":[],"mysql_root_password":"","admin_email":"","redis_max_memory":"1"}' > config.json
 
     # Preserve existing values if current variables are empty
     local current_email="${ADMIN_EMAIL}"
