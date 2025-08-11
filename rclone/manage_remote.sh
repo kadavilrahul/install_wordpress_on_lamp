@@ -37,14 +37,13 @@ select_remote() {
     local num_remotes=$(jq '.rclone_remotes | length' "$CONFIG_FILE" 2>/dev/null)
     [ "$num_remotes" -eq 0 ] && error "No remotes defined in 'rclone_remotes' array."
 
-    echo -e "${YELLOW}Please select a remote to manage:${NC}"
+    echo -e "${YELLOW}Please select name of remote. Default server_backup:${NC}"
     jq -r '.rclone_remotes[] | .remote_name' "$CONFIG_FILE" | nl
     
-    local last_option=$((num_remotes + 1))
-    echo "$last_option) Back to Main Menu"
+    echo "0) Back to main menu"
 
-    read -p "Enter number (1-$last_option): " choice
-    if [ "$choice" -eq "$last_option" ]; then
+    read -p "Enter number (1-$num_remotes, 0 to go back): " choice
+    if [ "$choice" -eq 0 ]; then
         return 1 # Signal to go back
     fi
 

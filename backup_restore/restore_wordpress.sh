@@ -64,7 +64,14 @@ is_wordpress_backup() {
     return $?
 }
 
-# Function to list backups with serial numbers
+# Function to extract website name from backup filename
+extract_website_name() {
+    local backup_filename="${1}"
+    # Extract website name from pattern: {website_name}_backup_{timestamp}.tar.gz
+    echo "${backup_filename}" | sed 's/_backup_.*\.tar\.gz$//'
+}
+
+# Function to list backups with serial numbers and website names
 list_and_store_backups() {
     echo "Available backups:"
     echo "----------------"
@@ -78,7 +85,8 @@ list_and_store_backups() {
     
     for i in "${!backup_files[@]}"; do
         filename=$(basename "${backup_files[$i]}")
-        echo "[$((i+1))] ${filename}"
+        website_name=$(extract_website_name "${filename}")
+        echo "[$((i+1))] ${filename} → ${website_name}"
     done
     
     return 0
@@ -195,13 +203,26 @@ restore_wordpress() {
     fi
     
     selected_backup="${backup_files[$((backup_number-1))]}"
-    log_message "Selected backup: $(basename "${selected_backup}")"
+    backup_filename=$(basename "${selected_backup}")
+    log_message "Selected backup: ${backup_filename}"
     
-    read -p "Enter the target site name for restoration: " TARGET_SITE
+    # Auto-detect website name from backup filename
+    TARGET_SITE=$(extract_website_name "${backup_filename}")
+    log_message "Auto-detected website name: ${TARGET_SITE}"
+    
+    # Ask for confirmation or allow override
+    echo
+    echo -e "${CYAN}Auto-detected website name: ${TARGET_SITE}${NC}"
+    read -p "Press Enter to use this name, or type a different name: " custom_name
+    
+    if [ -n "${custom_name}" ]; then
+        TARGET_SITE="${custom_name}"
+        log_message "Using custom website name: ${TARGET_SITE}"
+    fi
     
     if [ -d "${WWW_PATH}/${TARGET_SITE}" ]; then
-        read -p "Target directory already exists. Do you want to overwrite? (y/n): " confirm
-        if [ "${confirm}" != "y" ]; then
+        echo -e "${YELLOW}⚠ Target directory '${TARGET_SITE}' already exists.${NC}"
+        if ! confirm "Do you want to overwrite it?"; then
             error_exit "Restoration cancelled by user"
         fi
         log_message "Removing existing directory"
