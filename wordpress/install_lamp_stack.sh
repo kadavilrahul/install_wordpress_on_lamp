@@ -16,7 +16,7 @@ confirm() { read -p "$(echo -e "${CYAN}$1 [Y/n]: ${NC}")" -n 1 -r; echo; [[ -z "
 # Main menu header
 show_header() {
     clear
-    echo -e "${PURPLE}"
+    echo -e "${CYAN}"
     echo "============================================================================="
     echo "                    WordPress Master Installation Tool"
     echo "                   Comprehensive LAMP Stack Management"
@@ -133,17 +133,16 @@ check_system() {
 
 # Configuration management
 load_config() {
-    if [ -f "$(dirname "${BASH_SOURCE[0]}")/../config.json" ]; then
-        ADMIN_EMAIL=$(jq -r '.admin_email // ""' config.json)
-        REDIS_MAX_MEMORY=$(jq -r '.redis_max_memory // "1"' config.json)
-        DB_ROOT_PASSWORD=$(jq -r '.mysql_root_password // ""' config.json)
-        
-
+    local config_path="$(dirname "${BASH_SOURCE[0]}")/../config.json"
+    if [ -f "$config_path" ]; then
+        ADMIN_EMAIL=$(jq -r '.admin_email // ""' "$config_path")
+        REDIS_MAX_MEMORY=$(jq -r '.redis_max_memory // "1"' "$config_path")
+        DB_ROOT_PASSWORD=$(jq -r '.mysql_root_password // ""' "$config_path")
         
         # Try to get first domain from each section
-        DOMAIN=$(jq -r '.main_domains[0] // ""' config.json)
-        [ -z "$DOMAIN" ] && DOMAIN=$(jq -r '.subdomains[0] // ""' config.json)
-        [ -z "$DOMAIN" ] && DOMAIN=$(jq -r '.subdirectory_domains[0] // ""' config.json)
+        DOMAIN=$(jq -r '.main_domains[0] // ""' "$config_path")
+        [ -z "$DOMAIN" ] && DOMAIN=$(jq -r '.subdomains[0] // ""' "$config_path")
+        [ -z "$DOMAIN" ] && DOMAIN=$(jq -r '.subdirectory_domains[0] // ""' "$config_path")
         
         info "Configuration loaded from config.json"
         
@@ -163,7 +162,8 @@ save_config() {
     [[ "$DOMAIN" == *"/"* ]] && domain_type="subdirectory_domains"
 
     # Create config.json if it doesn't exist
-    [ ! -f "$(dirname "${BASH_SOURCE[0]}")/../config.json" ] && echo '{"main_domains":[],"subdomains":[],"subdirectory_domains":[],"mysql_root_password":"","admin_email":"","redis_max_memory":"1"}' > config.json
+    local config_path="$(dirname "${BASH_SOURCE[0]}")/../config.json"
+    [ ! -f "$config_path" ] && echo '{"main_domains":[],"subdomains":[],"subdirectory_domains":[],"mysql_root_password":"","admin_email":"","redis_max_memory":"1"}' > "$config_path"
 
     # Preserve existing values if current variables are empty
     local current_email="${ADMIN_EMAIL}"
@@ -171,9 +171,9 @@ save_config() {
     local current_pass="${DB_ROOT_PASSWORD}"
     
     # Only preserve from config.json if the variable is truly empty
-    [ -z "$current_email" ] && current_email=$(jq -r '.admin_email // ""' config.json)
-    [ -z "$current_redis" ] && current_redis=$(jq -r '.redis_max_memory // "1"' config.json)
-    [ -z "$current_pass" ] && current_pass=$(jq -r '.mysql_root_password // ""' config.json)
+    [ -z "$current_email" ] && current_email=$(jq -r '.admin_email // ""' "$config_path")
+    [ -z "$current_redis" ] && current_redis=$(jq -r '.redis_max_memory // "1"' "$config_path")
+    [ -z "$current_pass" ] && current_pass=$(jq -r '.mysql_root_password // ""' "$config_path")
 
     jq --arg email "$current_email" \
        --arg redis "$current_redis" \
@@ -185,7 +185,7 @@ save_config() {
            redis_max_memory: $redis,
            mysql_root_password: $pass
        } | .[$type] = (.[$type] + [$domain] | unique)' \
-       config.json > "$temp_file" && mv "$temp_file" config.json
+       "$config_path" > "$temp_file" && mv "$temp_file" "$config_path"
     success "Configuration saved to config.json"
 }
 
@@ -201,16 +201,18 @@ get_inputs() {
     local main_domains=()
     local subdomains=()
     local subdirectories=()
-    if [ -f "$(dirname "${BASH_SOURCE[0]}")/../config.json" ]; then
-        main_domains=($(jq -r '.main_domains[]?' config.json 2>/dev/null))
-        subdomains=($(jq -r '.subdomains[]?' config.json 2>/dev/null))
-        subdirectories=($(jq -r '.subdirectory_domains[]?' config.json 2>/dev/null))
+    local config_path="$(dirname "${BASH_SOURCE[0]}")/../config.json"
+    if [ -f "$config_path" ]; then
+        # Read arrays properly using mapfile
+        readarray -t main_domains < <(jq -r '.main_domains[]?' "$config_path" 2>/dev/null)
+        readarray -t subdomains < <(jq -r '.subdomains[]?' "$config_path" 2>/dev/null)
+        readarray -t subdirectories < <(jq -r '.subdirectory_domains[]?' "$config_path" 2>/dev/null)
     fi
 
     case $type in
         "main")
             if [ ${#main_domains[@]} -gt 0 ]; then
-                echo "Existing main domains:"
+                echo "A) Existing main domains:"
                 printf '%s\n' "${main_domains[@]}" | nl -w2 -s') '
                 read -p "Select domain (number) or enter new domain (e.g., example.com): " domain_choice
                 if [[ "$domain_choice" =~ ^[0-9]+$ ]]; then
@@ -242,7 +244,7 @@ get_inputs() {
             done
             
             if [ ${#subdomains[@]} -gt 0 ]; then
-                echo "Existing subdomains:"
+                echo "B) Existing subdomains:"
                 printf '%s\n' "${subdomains[@]}" | nl -w2 -s') '
                 read -p "Select subdomain (number) or enter new subdomain (format: sub.main.com): " subdomain_choice
                 
@@ -285,7 +287,7 @@ get_inputs() {
             done
             
             if [ ${#subdirectories[@]} -gt 0 ]; then
-                echo "Existing subdirectories:"
+                echo "C) Existing subdirectories:"
                 printf '%s\n' "${subdirectories[@]}" | nl -w2 -s') '
                 read -p "Select subdirectory (number) or enter new (format: domain.com/subdir): " subdir_choice
                 
@@ -677,23 +679,34 @@ EOF
 # Complete WordPress installation
 install_lamp_wordpress() {
     while true; do
-        # Get domains by type for proper menu display
+            # Get domains by type for proper menu display
         local main_domains=()
         local subdomains=()
-        local subdirectories=()
-        if [ -f "$(dirname "${BASH_SOURCE[0]}")/../config.json" ]; then
-            main_domains=($(jq -r '.main_domains[]?' config.json 2>/dev/null))
-            subdomains=($(jq -r '.subdomains[]?' config.json 2>/dev/null))
-            subdirectory_domains=($(jq -r '.subdirectory_domains[]?' config.json 2>/dev/null))
+        local subdirectory_domains=()
+        local config_path="$(dirname "${BASH_SOURCE[0]}")/../config.json"
+        if [ -f "$config_path" ]; then
+            readarray -t main_domains < <(jq -r '.main_domains[]?' "$config_path" 2>/dev/null)
+            readarray -t subdomains < <(jq -r '.subdomains[]?' "$config_path" 2>/dev/null)
+            readarray -t subdirectory_domains < <(jq -r '.subdirectory_domains[]?' "$config_path" 2>/dev/null)
         fi
 
         echo -e "${YELLOW}WordPress Installation Types:${NC}"
+        echo ""
         echo "1) Main Domain"
-        [ ${#main_domains[@]} -gt 0 ] && echo "   Existing main domains: ${main_domains[@]}"
+        if [ ${#main_domains[@]} -gt 0 ]; then
+            echo "   A) Existing main domains: ${main_domains[*]}"
+        fi
+        echo ""
         echo "2) Subdomain"
-        [ ${#subdomains[@]} -gt 0 ] && echo "   Existing subdomains: ${subdomains[@]}"
+        if [ ${#subdomains[@]} -gt 0 ]; then
+            echo "   B) Existing subdomains: ${subdomains[*]}"
+        fi
+        echo ""
         echo "3) Subdirectory"
-        [ ${#subdirectory_domains[@]} -gt 0 ] && echo "   Existing subdirectories: ${subdirectory_domains[@]}"
+        if [ ${#subdirectory_domains[@]} -gt 0 ]; then
+            echo "   C) Existing subdirectories: ${subdirectory_domains[*]}"
+        fi
+        echo ""
         echo "4) Back"
         read -p "Select type (1-4): " choice
         
@@ -702,7 +715,7 @@ install_lamp_wordpress() {
             2) get_inputs "subdomain" || continue; break ;;
             3)
                 if [ ${#subdirectory_domains[@]} -gt 0 ]; then
-                    echo "Existing subdirectories:"
+                    echo "C) Existing subdirectories:"
                     for i in "${!subdirectory_domains[@]}"; do
                         echo "$((i+1))) ${subdirectory_domains[$i]}"
                     done

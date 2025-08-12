@@ -18,7 +18,7 @@ check_root() { [[ $EUID -ne 0 ]] && error "This script must be run as root (use 
 # Main menu header
 show_header() {
     clear
-    echo -e "${PURPLE}"
+    echo -e "${CYAN}"
     echo "============================================================================="
     echo "                    WordPress Master Installation Tool"
     echo "                   Comprehensive LAMP Stack Management"
@@ -30,17 +30,21 @@ show_header() {
 
 # Configuration management
 load_config() {
-    if [ -f "$(dirname "${BASH_SOURCE[0]}")/../config.json" ]; then
-        ADMIN_EMAIL=$(jq -r '.admin_email // ""' config.json)
-        REDIS_MAX_MEMORY=$(jq -r '.redis_max_memory // "1"' config.json)
-        DB_ROOT_PASSWORD=$(jq -r '.mysql_root_password // ""' config.json)
+    local config_path="$(dirname "${BASH_SOURCE[0]}")/../config.json"
+    if [ -f "$config_path" ]; then
+        ADMIN_EMAIL=$(jq -r '.admin_email // ""' "$config_path")
+        REDIS_MAX_MEMORY=$(jq -r '.redis_max_memory // "1"' "$config_path")
+        DB_ROOT_PASSWORD=$(jq -r '.mysql_root_password // ""' "$config_path")
         
-
+        # Load domain arrays properly
+        readarray -t MAIN_DOMAINS < <(jq -r '.main_domains[]?' "$config_path" 2>/dev/null)
+        readarray -t SUBDOMAINS < <(jq -r '.subdomains[]?' "$config_path" 2>/dev/null)
+        readarray -t SUBDIRECTORY_DOMAINS < <(jq -r '.subdirectory_domains[]?' "$config_path" 2>/dev/null)
         
         # Try to get first domain from each section
-        DOMAIN=$(jq -r '.main_domains[0] // ""' config.json)
-        [ -z "$DOMAIN" ] && DOMAIN=$(jq -r '.subdomains[0] // ""' config.json)
-        [ -z "$DOMAIN" ] && DOMAIN=$(jq -r '.subdirectory_domains[0] // ""' config.json)
+        DOMAIN=$(jq -r '.main_domains[0] // ""' "$config_path")
+        [ -z "$DOMAIN" ] && DOMAIN=$(jq -r '.subdomains[0] // ""' "$config_path")
+        [ -z "$DOMAIN" ] && DOMAIN=$(jq -r '.subdirectory_domains[0] // ""' "$config_path")
         
         info "Configuration loaded from config.json"
         
@@ -60,7 +64,8 @@ save_config() {
     [[ "$DOMAIN" == *"/"* ]] && domain_type="subdirectory_domains"
 
     # Create config.json if it doesn't exist
-    [ ! -f "$(dirname "${BASH_SOURCE[0]}")/../config.json" ] && echo '{"main_domains":[],"subdomains":[],"subdirectory_domains":[],"mysql_root_password":"","admin_email":"","redis_max_memory":"1"}' > config.json
+    local config_path="$(dirname "${BASH_SOURCE[0]}")/../config.json"
+    [ ! -f "$config_path" ] && echo '{"main_domains":[],"subdomains":[],"subdirectory_domains":[],"mysql_root_password":"","admin_email":"","redis_max_memory":"1"}' > "$config_path"
 
     # Preserve existing values if current variables are empty
     local current_email="${ADMIN_EMAIL}"
@@ -68,9 +73,9 @@ save_config() {
     local current_pass="${DB_ROOT_PASSWORD}"
     
     # Only preserve from config.json if the variable is truly empty
-    [ -z "$current_email" ] && current_email=$(jq -r '.admin_email // ""' config.json)
-    [ -z "$current_redis" ] && current_redis=$(jq -r '.redis_max_memory // "1"' config.json)
-    [ -z "$current_pass" ] && current_pass=$(jq -r '.mysql_root_password // ""' config.json)
+    [ -z "$current_email" ] && current_email=$(jq -r '.admin_email // ""' "$config_path")
+    [ -z "$current_redis" ] && current_redis=$(jq -r '.redis_max_memory // "1"' "$config_path")
+    [ -z "$current_pass" ] && current_pass=$(jq -r '.mysql_root_password // ""' "$config_path")
 
     jq --arg email "$current_email" \
        --arg redis "$current_redis" \
@@ -82,7 +87,7 @@ save_config() {
            redis_max_memory: $redis,
            mysql_root_password: $pass
        } | .[$type] = (.[$type] + [$domain] | unique)' \
-       config.json > "$temp_file" && mv "$temp_file" config.json
+       "$config_path" > "$temp_file" && mv "$temp_file" "$config_path"
     success "Configuration saved to config.json"
 }
 
@@ -105,38 +110,52 @@ setup_new_domain() {
     load_config
     
     # Create selection menu for domains
-    echo "Available domains from config.json:"
-    echo "1) Main domains:"
     local counter=1
     declare -a domain_options
+    local has_domains=false
+    
+    echo "Available domains from config.json:"
+    echo ""
     
     # Add main domains
-    if [ -n "$MAIN_DOMAINS" ]; then
-        for domain in $MAIN_DOMAINS; do
+    if [ ${#MAIN_DOMAINS[@]} -gt 0 ]; then
+        echo "A) Main domains:"
+        for domain in "${MAIN_DOMAINS[@]}"; do
             echo "   $counter) $domain"
             domain_options[$counter]="$domain"
             ((counter++))
+            has_domains=true
         done
+        echo ""
     fi
     
     # Add subdomains
-    if [ -n "$SUBDOMAINS" ]; then
-        echo "2) Subdomains:"
-        for domain in $SUBDOMAINS; do
+    if [ ${#SUBDOMAINS[@]} -gt 0 ]; then
+        echo "B) Subdomains:"
+        for domain in "${SUBDOMAINS[@]}"; do
             echo "   $counter) $domain"
             domain_options[$counter]="$domain"
             ((counter++))
+            has_domains=true
         done
+        echo ""
     fi
     
     # Add subdirectory domains
-    if [ -n "$SUBDIRECTORY_DOMAINS" ]; then
-        echo "3) Subdirectory domains:"
-        for domain in $SUBDIRECTORY_DOMAINS; do
+    if [ ${#SUBDIRECTORY_DOMAINS[@]} -gt 0 ]; then
+        echo "C) Subdirectory domains:"
+        for domain in "${SUBDIRECTORY_DOMAINS[@]}"; do
             echo "   $counter) $domain"
             domain_options[$counter]="$domain"
             ((counter++))
+            has_domains=true
         done
+        echo ""
+    fi
+    
+    if [ "$has_domains" = false ]; then
+        echo "No domains found in config.json"
+        echo ""
     fi
     
     echo "   0) Enter custom domain"

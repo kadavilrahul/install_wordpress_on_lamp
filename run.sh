@@ -38,15 +38,14 @@ show_menu() {
     echo -e "${YELLOW}Main Menu:${NC}"
     echo "  1) Install LAMP Stack + WordPress - Complete LAMP installation with WordPress setup"
     echo "  2) Backup/Restore - Backup and restore WordPress sites and databases"
-    echo "  3) Install Apache + SSL Only - Set up web server with SSL for existing domains"
-    echo "  4) MySQL Management - Database operations and remote access configuration"
-    echo "  5) PHP Management - PHP configuration and information tools"
-    echo "  6) Troubleshooting - Diagnose and fix common website issues"
-    echo "  7) Rclone Management - Manage cloud storage backups with Google Drive"
-    echo "  8) Configure Redis - Set up Redis caching for better performance"
-    echo "  9) System Management - System monitoring, utilities, and SSH configuration"
-    echo "  10) Website Management - Remove websites, databases, and cleanup operations"
-    echo "  11) Apache Management - Apache configuration and SSL management"
+    echo "  3) MySQL Management - Database operations and remote access configuration"
+    echo "  4) PHP Management - PHP configuration and information tools"
+    echo "  5) Troubleshooting - Diagnose and fix common website issues"
+    echo "  6) Rclone Management - Manage cloud storage backups with Google Drive"
+    echo "  7) Configure Redis - Set up Redis caching for better performance"
+    echo "  8) System Management - System monitoring, utilities, and SSH configuration"
+    echo "  9) Website Management - Remove websites, databases, and cleanup operations"
+    echo "  10) Apache Management - Apache configuration and SSL management"
     echo "  0) Exit - Close the Website Master tool"
     echo -e "${CYAN}=============================================================================${NC}"
 }
@@ -215,26 +214,25 @@ main() {
     
     while true; do
         show_menu
-        read -p "Select option (0-11): " choice
+        read -p "Select option (0-10): " choice
         
         case $choice in
             1) execute_script "$SCRIPT_DIR/wordpress/install_lamp_stack.sh" "LAMP Stack + WordPress Installation" ;;
             2) execute_script "$SCRIPT_DIR/backup_restore/backup_restore_menu.sh" "Backup/Restore Menu" ;;
-            3) execute_script "$SCRIPT_DIR/apache/install_ssl_only.sh" "Apache + SSL Installation" ;;
-            4) mysql_management_menu ;;
-            5) php_management_menu ;;
-            6) execute_script "$SCRIPT_DIR/troubleshooting/troubleshooting_menu.sh" "Troubleshooting Tools" ;;
-            7) execute_script "$SCRIPT_DIR/rclone/rclone_menu.sh" "Rclone Management" ;;
-            8) execute_script "$SCRIPT_DIR/redis/configure.sh" "Redis Configuration" ;;
-            9) system_management_menu ;;
-            10) website_management_menu ;;
-            11) apache_management_menu ;;
+            3) mysql_management_menu ;;
+            4) php_management_menu ;;
+            5) execute_script "$SCRIPT_DIR/troubleshooting/troubleshooting_menu.sh" "Troubleshooting Tools" ;;
+            6) execute_script "$SCRIPT_DIR/rclone/rclone_menu.sh" "Rclone Management" ;;
+            7) execute_script "$SCRIPT_DIR/redis/configure.sh" "Redis Configuration" ;;
+            8) system_management_menu ;;
+            9) website_management_menu ;;
+            10) apache_management_menu ;;
             0) 
                 echo -e "${GREEN}Thank you for using WordPress Master!${NC}"
                 exit 0 
                 ;;
             *) 
-                echo -e "${RED}Invalid option. Please select 0-11.${NC}"
+                echo -e "${RED}Invalid option. Please select 0-10.${NC}"
                 sleep 1
                 ;;
         esac
