@@ -17,5 +17,10 @@
       "remote_name": "server_backup"
     }
   ],
+  "backup_locations": {
+    "silkroademart.com": "backup_silkroademart",
+    "nilgiristores.in": "backup_nilgiristores", 
+    "agnoagents.online": "backup_agnoagents"
+  },
   "redis_max_memory": "1"
 }

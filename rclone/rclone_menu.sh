@@ -57,17 +57,19 @@ rclone_menu() {
         echo "  2) Manage Remote Storage - Configure cloud storage connections"
         echo "  3) Show Remote Connections - Display configured remote storage services"
         echo "  4) Show Rclone Status - Check rclone service status and configuration"
-        echo "  5) Uninstall Rclone Package - Remove rclone from the system"
+        echo "  5) Setup Backup Cron Jobs - Auto-configure daily backup schedule"
+        echo "  6) Uninstall Rclone Package - Remove rclone from the system"
         echo "  0) Back to Main Menu"
         echo -e "${CYAN}=============================================================================${NC}"
         
-        read -p "Select option (0-5): " rclone_choice
+        read -p "Select option (0-6): " rclone_choice
         case $rclone_choice in
             1) execute_script "$script_dir/install_package.sh" "Install Rclone Package" ;;
             2) execute_script "$script_dir/manage_remote.sh" "Manage Remote Storage" ;;
             3) execute_script "$script_dir/show_remotes.sh" "Show Remote Connections" ;;
             4) execute_script "$script_dir/show_status.sh" "Show Rclone Status" ;;
-            5) execute_script "$script_dir/uninstall_package.sh" "Uninstall Rclone Package" ;;
+            5) execute_script "$script_dir/setup_backup_cron.sh" "Setup Backup Cron Jobs" ;;
+            6) execute_script "$script_dir/uninstall_package.sh" "Uninstall Rclone Package" ;;
             0) break ;;
             *) echo -e "${RED}Invalid option${NC}"; sleep 1 ;;
         esac

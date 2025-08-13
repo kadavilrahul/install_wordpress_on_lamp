@@ -43,10 +43,10 @@ show_menu() {
     echo "  5) Troubleshooting - Diagnose and fix common website issues"
     echo "  6) Rclone Management - Manage cloud storage backups with Google Drive"
     echo "  7) Configure Redis - Set up Redis caching for better performance"
-    echo "  8) System Management - System monitoring, utilities, and SSH configuration"
-    echo "  9) Website Management - Remove websites, databases, and cleanup operations"
-    echo "  10) Apache Management - Apache configuration and SSL management"
-    echo "  0) Exit - Close the Website Master tool"
+        echo "  8) System Management - System monitoring, utilities, and SSH configuration"
+        echo "  9) Website Management - Remove websites, databases, and cleanup operations"
+        echo "  10) Apache Management - Apache configuration and SSL management"
+        echo "  0) Exit - Close the Website Master tool"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
