@@ -96,22 +96,61 @@ setup_backup_cron() {
     # Remove existing backup crons
     local new_crons=$(echo "$current_crons" | grep -v "$BACKUP_SCRIPT" | grep -v "rclone.*$BACKUP_DIR")
     
+    # Show backup script menu to user first
+    echo
+    echo -e "${CYAN}Let's see what backup options are available...${NC}"
+    echo "1" | timeout 10 bash "$BACKUP_SCRIPT" 2>/dev/null | grep -A 10 "Available WordPress Sites:" | head -15
+    
+    echo
+    echo -e "${YELLOW}Backup Selection for Cron Job:${NC}"
+    echo "----------------------------------------"
+    echo "  1) Select specific site (option 1)"
+    echo "  2) Backup ALL websites (option 2)"
+    echo "  3) Custom option number"
+    echo "----------------------------------------"
+    
+    read -p "Choose backup method for cron (1-3): " backup_method
+    
+    local backup_command=""
+    case $backup_method in
+        1)
+            backup_command="echo \"1\" | bash $BACKUP_SCRIPT"
+            info "Selected: Backup first discovered site"
+            ;;
+        2)
+            backup_command="echo \"2\" | bash $BACKUP_SCRIPT"
+            info "Selected: Backup ALL websites"
+            ;;
+        3)
+            read -p "Enter option number to auto-select: " option_num
+            if [[ "$option_num" =~ ^[0-9]+$ ]]; then
+                backup_command="echo \"$option_num\" | bash $BACKUP_SCRIPT"
+                info "Selected: Auto-select option $option_num"
+            else
+                error "Invalid option number"
+            fi
+            ;;
+        *)
+            error "Invalid selection"
+            ;;
+    esac
+    
     # Add backup cron
     if [ -n "$new_crons" ]; then
         new_crons="$new_crons"$'\n'
     fi
-    new_crons="${new_crons}30 02 * * * bash $BACKUP_SCRIPT"$'\n'
+    new_crons="${new_crons}30 02 * * * $backup_command"$'\n'
     
     # Add rclone crons only for existing websites
     for website_info in "${existing_websites[@]}"; do
         local website=$(echo "$website_info" | cut -d: -f1)
         local backup_path=$(echo "$website_info" | cut -d: -f2)
         local remote_path="${first_remote}:${backup_path}"
-        new_crons="${new_crons}30 03 * * * /usr/bin/rclone copy $BACKUP_DIR ${remote_path} --include=\"*${website}*\" --log-file=$RCLONE_LOG"$'\n'
+        new_crons="${new_crons}00 04 * * * /usr/bin/rclone copy $BACKUP_DIR ${remote_path} --include=\"*${website}*\" --log-file=$RCLONE_LOG"$'\n'
     done
     
     # Add cleanup cron
-    new_crons="${new_crons}35 03 * * * find $BACKUP_DIR -type f -exec rm -f {} \\;"
+    new_crons="${new_crons}05 04 * * * find $BACKUP_DIR -type f -exec rm -f {} \\;"
     
     # Install crontab
     echo "$new_crons" | crontab -
@@ -120,9 +159,9 @@ setup_backup_cron() {
         success "Backup cron jobs configured successfully!"
         echo
         echo -e "${GREEN}Scheduled Tasks:${NC}"
-        echo -e "${BLUE}• 2:30 AM daily: WordPress backup${NC}"
-        echo -e "${BLUE}• 3:30 AM daily: Upload to website-specific remote paths${NC}"
-        echo -e "${BLUE}• 3:35 AM daily: Cleanup local backup files${NC}"
+        echo -e "${BLUE}• 2:30 AM daily: WordPress backup (automated selection)${NC}"
+        echo -e "${BLUE}• 4:00 AM daily: Upload to website-specific remote paths${NC}"
+        echo -e "${BLUE}• 4:05 AM daily: Cleanup local backup files${NC}"
         echo
         echo -e "${YELLOW}Remote: $first_remote${NC}"
         echo -e "${YELLOW}Backup dir: $BACKUP_DIR${NC}"
