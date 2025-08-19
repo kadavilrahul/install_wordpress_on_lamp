@@ -96,16 +96,18 @@ mysql_management_menu() {
         echo "  3) List MySQL Users - Show all MySQL user accounts and hosts"
         echo "  4) Get Database Size - Check storage usage of specific database"
         echo "  5) Install phpMyAdmin - Set up web-based MySQL administration tool"
+        echo "  6) Enable Automatic Log Purging - Configure MySQL to automatically purge old binary logs"
         echo "  0) Back to Main Menu"
         echo -e "${CYAN}=============================================================================${NC}"
         
-        read -p "Select option (0-5): " mysql_choice
+        read -p "Select option (0-6): " mysql_choice
         case $mysql_choice in
             1) execute_script "$SCRIPT_DIR/mysql/remote_access.sh" "MySQL Remote Access Configuration" ;;
             2) execute_script "$SCRIPT_DIR/mysql/show_databases.sh" "Show MySQL Databases" ;;
             3) execute_script "$SCRIPT_DIR/mysql/list_users.sh" "List MySQL Users" ;;
             4) execute_script "$SCRIPT_DIR/mysql/get_database_size.sh" "Get Database Size" ;;
             5) execute_script "$SCRIPT_DIR/mysql/install_phpmyadmin.sh" "Install phpMyAdmin" ;;
+            6) execute_script "$SCRIPT_DIR/mysql/enable_auto_log_purging.sh" "Enable Automatic Log Purging" ;;
             0) break ;;
             *) echo -e "${RED}Invalid option${NC}"; sleep 1 ;;
         esac
