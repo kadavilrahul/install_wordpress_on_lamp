@@ -135,6 +135,63 @@ for DB in $DATABASES; do
     done
 done
 
+# Grant access for all existing users from all hosts (%)
+log_message "Granting access from all IPs for all existing users..."
+ALL_USERS=$(mysql -u root -p"$ROOT_PASS" -sN -e "SELECT DISTINCT User FROM mysql.user WHERE User != '' AND User NOT IN ('mysql.session', 'mysql.sys', 'debian-sys-maint');" 2>/dev/null)
+
+for USER in $ALL_USERS; do
+    if [ -n "$USER" ] && [ "$USER" != "root" ]; then
+        log_message "  Configuring user: $USER for access from all IPs"
+        
+        # Get the user's databases
+        USER_DBS=$(mysql -u root -p"$ROOT_PASS" -sN -e "SELECT DISTINCT Db FROM mysql.db WHERE User = '$USER' AND Db != '';" 2>/dev/null)
+        
+        for DB in $USER_DBS; do
+            if [ -n "$DB" ]; then
+                # Get password hash from existing user
+                PWD_HASH=$(mysql -u root -p"$ROOT_PASS" -sN -e "SELECT authentication_string FROM mysql.user WHERE user='$USER' LIMIT 1;" 2>/dev/null)
+                
+                if [ -n "$PWD_HASH" ] && [ "$PWD_HASH" != "NULL" ]; then
+                    mysql -u root -p"$ROOT_PASS" -e "
+                        CREATE USER IF NOT EXISTS '$USER'@'%' IDENTIFIED WITH mysql_native_password AS '$PWD_HASH';
+                        GRANT ALL PRIVILEGES ON \`$DB\`.* TO '$USER'@'%';
+                        FLUSH PRIVILEGES;
+                    " 2>/dev/null && log_message "    Successfully granted access to $USER@% for database $DB"
+                fi
+            fi
+        done
+        
+        # Also grant global privileges if user had them
+        GLOBAL_PRIVS=$(mysql -u root -p"$ROOT_PASS" -sN -e "SELECT COUNT(*) FROM mysql.user WHERE User='$USER' AND (Select_priv='Y' OR Insert_priv='Y' OR Update_priv='Y' OR Delete_priv='Y');" 2>/dev/null)
+        
+        if [ "$GLOBAL_PRIVS" -gt 0 ]; then
+            PWD_HASH=$(mysql -u root -p"$ROOT_PASS" -sN -e "SELECT authentication_string FROM mysql.user WHERE user='$USER' LIMIT 1;" 2>/dev/null)
+            if [ -n "$PWD_HASH" ] && [ "$PWD_HASH" != "NULL" ]; then
+                mysql -u root -p"$ROOT_PASS" -e "
+                    CREATE USER IF NOT EXISTS '$USER'@'%' IDENTIFIED WITH mysql_native_password AS '$PWD_HASH';
+                    GRANT ALL PRIVILEGES ON *.* TO '$USER'@'%';
+                    FLUSH PRIVILEGES;
+                " 2>/dev/null && log_message "    Successfully granted global privileges to $USER@%"
+            fi
+        fi
+    fi
+done
+
+# Specifically handle nilgiristores_in_user if it exists
+log_message "Checking for nilgiristores_in_user specifically..."
+NILGIRI_EXISTS=$(mysql -u root -p"$ROOT_PASS" -sN -e "SELECT COUNT(*) FROM mysql.user WHERE user='nilgiristores_in_user';" 2>/dev/null)
+if [ "$NILGIRI_EXISTS" -gt 0 ]; then
+    log_message "Found nilgiristores_in_user, configuring for remote access..."
+    PWD_HASH=$(mysql -u root -p"$ROOT_PASS" -sN -e "SELECT authentication_string FROM mysql.user WHERE user='nilgiristores_in_user' LIMIT 1;" 2>/dev/null)
+    if [ -n "$PWD_HASH" ] && [ "$PWD_HASH" != "NULL" ]; then
+        mysql -u root -p"$ROOT_PASS" -e "
+            CREATE USER IF NOT EXISTS 'nilgiristores_in_user'@'%' IDENTIFIED WITH mysql_native_password AS '$PWD_HASH';
+            GRANT ALL PRIVILEGES ON nilgiristores_in_db.* TO 'nilgiristores_in_user'@'%';
+            FLUSH PRIVILEGES;
+        " 2>/dev/null && log_message "Successfully configured nilgiristores_in_user@% for remote access"
+    fi
+fi
+
 # Configure root user for remote access (with security warning)
 log_message "Configuring root user for remote access..."
 log_message "WARNING: Enabling remote root access is a security risk. Consider creating dedicated users instead."
