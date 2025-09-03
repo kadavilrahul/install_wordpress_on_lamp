@@ -33,21 +33,39 @@ show_header() {
 show_menu() {
     clear
     echo -e "${CYAN}============================================================================="
-    echo "                            Website Master"
+    echo "                    WordPress LAMP Stack Management System"
     echo -e "=============================================================================${NC}"
-    echo -e "${YELLOW}Main Menu:${NC}"
-    echo "  1) Install LAMP Stack + WordPress - Complete LAMP installation with WordPress setup"
-    echo "  2) Backup/Restore - Backup and restore WordPress sites and databases"
-    echo "  3) MySQL Management - Database operations and remote access configuration"
-    echo "  4) Check MySQL Remote Access - Verify if MySQL is accessible from remote locations"
-    echo "  5) PHP Management - PHP configuration and information tools"
-    echo "  6) Troubleshooting - Diagnose and fix common website issues"
-    echo "  7) Rclone Management - Manage cloud storage backups with Google Drive"
-    echo "  8) Configure Redis - Set up Redis caching for better performance"
-        echo "  9) System Management - System monitoring, utilities, and SSH configuration"
-        echo "  10) Website Management - Remove websites, databases, and cleanup operations"
-        echo "  11) Apache Management - Apache configuration and SSL management"
-        echo "  0) Exit - Close the Website Master tool"
+    echo "1. Install LAMP Stack + WordPress   ./run.sh lamp         # Complete LAMP installation with WordPress setup"
+    echo "2. Backup WordPress Sites           ./run.sh backup       # Create backups of WordPress sites and databases"
+    echo "3. Restore WordPress Sites          ./run.sh restore      # Restore WordPress sites from backups"
+    echo "4. Transfer Backups to Cloud        ./run.sh transfer     # Upload backups to cloud storage with rclone"
+    echo "5. Configure MySQL Remote Access    ./run.sh mysql        # Set up MySQL for remote connections"
+    echo "6. Check MySQL Remote Access        ./run.sh checkdb      # Verify MySQL remote accessibility status"
+    echo "7. Show MySQL Databases             ./run.sh showdb       # Display all databases in MySQL server"
+    echo "8. List MySQL Users                 ./run.sh users        # Show all MySQL user accounts and permissions"
+    echo "9. Get Database Size                ./run.sh dbsize       # Check storage usage of databases"
+    echo "10. Install phpMyAdmin              ./run.sh phpmyadmin   # Set up web-based MySQL administration"
+    echo "11. Enable MySQL Log Purging        ./run.sh purge        # Configure automatic binary log cleanup"
+    echo "12. Adjust PHP Settings             ./run.sh php          # Optimize PHP configuration for web apps"
+    echo "13. View PHP Information            ./run.sh phpinfo      # Display PHP version and configuration"
+    echo "14. System Status Check             ./run.sh status       # View system resources and service status"
+    echo "15. Disk Space Monitor              ./run.sh disk         # Monitor storage usage and cleanup"
+    echo "16. Toggle Root SSH Access          ./run.sh ssh          # Enable or disable SSH root login"
+    echo "17. Install System Utilities        ./run.sh utils        # Install common system tools"
+    echo "18. Install Rclone Package          ./run.sh rclone       # Download and install rclone with dependencies"
+    echo "19. Configure Rclone Remote         ./run.sh config       # Set up new cloud storage authentication"
+    echo "20. Show Rclone Remotes             ./run.sh remotes      # Display configured remotes and accessibility"
+    echo "21. Check Rclone Status             ./run.sh rclonestatus # View rclone setup and configuration status"
+    echo "22. Manage Cloud Remote             ./run.sh manage       # Interactive cloud storage management"
+    echo "23. Setup Backup Automation         ./run.sh cron         # Configure automatic backup scheduling"
+    echo "24. Uninstall Rclone                ./run.sh uninstall    # Remove rclone and all configurations"
+    echo "25. Configure Redis Cache           ./run.sh redis        # Set up Redis caching for performance"
+    echo "26. Install Apache + SSL Only       ./run.sh ssl          # Set up web server with SSL certificates"
+    echo "27. Fix Apache Configurations       ./run.sh fixapache    # Repair broken Apache virtual host configs"
+    echo "28. Remove Websites & Databases     ./run.sh remove       # Clean removal of websites and data"
+    echo "29. Remove Orphaned Databases       ./run.sh cleanup      # Clean up databases without websites"
+    echo "30. Troubleshooting Tools           ./run.sh troubleshoot # Diagnose and fix common issues"
+    echo "0. Exit"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
@@ -84,159 +102,101 @@ execute_script() {
     return $exit_code
 }
 
-# Submenu for MySQL Management
-mysql_management_menu() {
-    while true; do
-        clear
-        echo -e "${CYAN}============================================================================="
-        echo "                            MySQL Management"
-        echo -e "=============================================================================${NC}"
-        echo -e "${YELLOW}MySQL Options:${NC}"
-        echo "  1) Configure Remote Access - Set up MySQL for remote connections"
-        echo "  2) Show Databases - Display all databases in MySQL server"
-        echo "  3) List MySQL Users - Show all MySQL user accounts and hosts"
-        echo "  4) Get Database Size - Check storage usage of specific database"
-        echo "  5) Install phpMyAdmin - Set up web-based MySQL administration tool"
-        echo "  6) Enable Automatic Log Purging - Configure MySQL to automatically purge old binary logs"
-        echo "  0) Back to Main Menu"
-        echo -e "${CYAN}=============================================================================${NC}"
-        
-        read -p "Select option (0-6): " mysql_choice
-        case $mysql_choice in
-            1) execute_script "$SCRIPT_DIR/mysql/remote_access.sh" "MySQL Remote Access Configuration" ;;
-            2) execute_script "$SCRIPT_DIR/mysql/show_databases.sh" "Show MySQL Databases" ;;
-            3) execute_script "$SCRIPT_DIR/mysql/list_users.sh" "List MySQL Users" ;;
-            4) execute_script "$SCRIPT_DIR/mysql/get_database_size.sh" "Get Database Size" ;;
-            5) execute_script "$SCRIPT_DIR/mysql/install_phpmyadmin.sh" "Install phpMyAdmin" ;;
-            6) execute_script "$SCRIPT_DIR/mysql/enable_auto_log_purging.sh" "Enable Automatic Log Purging" ;;
-            0) break ;;
-            *) echo -e "${RED}Invalid option${NC}"; sleep 1 ;;
-        esac
-    done
-}
-
-# Submenu for PHP Management
-php_management_menu() {
-    while true; do
-        clear
-        echo -e "${CYAN}============================================================================="
-        echo "                            PHP Management"
-        echo -e "=============================================================================${NC}"
-        echo -e "${YELLOW}PHP Options:${NC}"
-        echo "  1) Adjust PHP Settings - Optimize PHP configuration for web applications"
-        echo "  2) View PHP Info - Display PHP version and configuration details"
-        echo "  0) Back to Main Menu"
-        echo -e "${CYAN}=============================================================================${NC}"
-        
-        read -p "Select option (0-2): " php_choice
-        case $php_choice in
-            1) execute_script "$SCRIPT_DIR/php/adjust_settings.sh" "Adjust PHP Settings" ;;
-            2) execute_script "$SCRIPT_DIR/php/view_info.sh" "View PHP Information" ;;
-            0) break ;;
-            *) echo -e "${RED}Invalid option${NC}"; sleep 1 ;;
-        esac
-    done
-}
-
-# Submenu for System Management
-system_management_menu() {
-    while true; do
-        clear
-        echo -e "${CYAN}============================================================================="
-        echo "                            System Management"
-        echo -e "=============================================================================${NC}"
-        echo -e "${YELLOW}System Options:${NC}"
-        echo "  1) System Status Check - View system resources and service status"
-        echo "  2) Disk Space Monitor - Monitor storage usage and clean system files"
-        echo "  3) Toggle Root SSH - Enable or disable SSH root login access"
-        echo "  4) Install System Utilities - Install common system tools and utilities"
-        echo "  0) Back to Main Menu"
-        echo -e "${CYAN}=============================================================================${NC}"
-        
-        read -p "Select option (0-4): " system_choice
-        case $system_choice in
-            1) execute_script "$SCRIPT_DIR/system/status_check.sh" "System Status Check" ;;
-            2) execute_script "$SCRIPT_DIR/system/disk_space_monitor.sh" "Disk Space Monitor" ;;
-            3) execute_script "$SCRIPT_DIR/system/toggle_root_ssh.sh" "Toggle Root SSH" ;;
-            4) execute_script "$SCRIPT_DIR/system/install_utilities.sh" "Install System Utilities" ;;
-            0) break ;;
-            *) echo -e "${RED}Invalid option${NC}"; sleep 1 ;;
-        esac
-    done
-}
-
-# Submenu for Website Management
-website_management_menu() {
-    while true; do
-        clear
-        echo -e "${CYAN}============================================================================="
-        echo "                            Website Management"
-        echo -e "=============================================================================${NC}"
-        echo -e "${YELLOW}Website Options:${NC}"
-        echo "  1) Remove Websites & Databases - Clean removal of websites and associated data"
-        echo "  2) Remove Orphaned Databases - Clean up databases without corresponding websites"
-        echo "  0) Back to Main Menu"
-        echo -e "${CYAN}=============================================================================${NC}"
-        
-        read -p "Select option (0-2): " website_choice
-        case $website_choice in
-            1) execute_script "$SCRIPT_DIR/wordpress/remove_websites_databases.sh" "Remove Websites & Databases" ;;
-            2) execute_script "$SCRIPT_DIR/wordpress/remove_orphaned_databases.sh" "Remove Orphaned Databases" ;;
-            0) break ;;
-            *) echo -e "${RED}Invalid option${NC}"; sleep 1 ;;
-        esac
-    done
-}
-
-# Submenu for Apache Management
-apache_management_menu() {
-    while true; do
-        clear
-        echo -e "${CYAN}============================================================================="
-        echo "                            Apache Management"
-        echo -e "=============================================================================${NC}"
-        echo -e "${YELLOW}Apache Options:${NC}"
-        echo "  1) Install Apache + SSL Only - Set up web server with SSL for existing domains"
-        echo "  2) Fix Apache Configs - Repair broken Apache virtual host configurations"
-        echo "  0) Back to Main Menu"
-        echo -e "${CYAN}=============================================================================${NC}"
-        
-        read -p "Select option (0-2): " apache_choice
-        case $apache_choice in
-            1) execute_script "$SCRIPT_DIR/apache/install_ssl_only.sh" "Install Apache + SSL Only" ;;
-            2) execute_script "$SCRIPT_DIR/apache/fix_configs.sh" "Fix Apache Configs" ;;
-            0) break ;;
-            *) echo -e "${RED}Invalid option${NC}"; sleep 1 ;;
-        esac
-    done
+# Handle CLI arguments
+handle_cli_command() {
+    local command="$1"
+    
+    case $command in
+        "lamp") execute_script "$SCRIPT_DIR/wordpress/install_lamp_stack.sh" "LAMP Stack + WordPress Installation" ;;
+        "backup") execute_script "$SCRIPT_DIR/backup_restore/backup_wordpress.sh" "WordPress Backup" ;;
+        "restore") execute_script "$SCRIPT_DIR/backup_restore/restore_wordpress.sh" "WordPress Restore" ;;
+        "transfer") execute_script "$SCRIPT_DIR/backup_restore/transfer_backups.sh" "Transfer Backups to Cloud" ;;
+        "mysql") execute_script "$SCRIPT_DIR/mysql/remote_access.sh" "MySQL Remote Access Configuration" ;;
+        "checkdb") execute_script "$SCRIPT_DIR/mysql/check_remote_access.sh" "Check MySQL Remote Access" ;;
+        "showdb") execute_script "$SCRIPT_DIR/mysql/show_databases.sh" "Show MySQL Databases" ;;
+        "users") execute_script "$SCRIPT_DIR/mysql/list_users.sh" "List MySQL Users" ;;
+        "dbsize") execute_script "$SCRIPT_DIR/mysql/get_database_size.sh" "Get Database Size" ;;
+        "phpmyadmin") execute_script "$SCRIPT_DIR/mysql/install_phpmyadmin.sh" "Install phpMyAdmin" ;;
+        "purge") execute_script "$SCRIPT_DIR/mysql/enable_auto_log_purging.sh" "Enable MySQL Log Purging" ;;
+        "php") execute_script "$SCRIPT_DIR/php/adjust_settings.sh" "Adjust PHP Settings" ;;
+        "phpinfo") execute_script "$SCRIPT_DIR/php/view_info.sh" "View PHP Information" ;;
+        "status") execute_script "$SCRIPT_DIR/system/status_check.sh" "System Status Check" ;;
+        "disk") execute_script "$SCRIPT_DIR/system/disk_space_monitor.sh" "Disk Space Monitor" ;;
+        "ssh") execute_script "$SCRIPT_DIR/system/toggle_root_ssh.sh" "Toggle Root SSH" ;;
+        "utils") execute_script "$SCRIPT_DIR/system/install_utilities.sh" "Install System Utilities" ;;
+        "rclone") execute_script "$SCRIPT_DIR/rclone/install_package.sh" "Install Rclone Package" ;;
+        "config") execute_script "$SCRIPT_DIR/rclone/manage_remote.sh" "Configure Rclone Remote" ;;
+        "remotes") execute_script "$SCRIPT_DIR/rclone/show_remotes.sh" "Show Rclone Remotes" ;;
+        "rclonestatus") execute_script "$SCRIPT_DIR/rclone/show_status.sh" "Check Rclone Status" ;;
+        "manage") execute_script "$SCRIPT_DIR/rclone/manage_remote.sh" "Manage Cloud Remote" ;;
+        "cron") execute_script "$SCRIPT_DIR/rclone/setup_backup_cron.sh" "Setup Backup Automation" ;;
+        "uninstall") execute_script "$SCRIPT_DIR/rclone/uninstall_package.sh" "Uninstall Rclone" ;;
+        "redis") execute_script "$SCRIPT_DIR/redis/configure.sh" "Configure Redis Cache" ;;
+        "ssl") execute_script "$SCRIPT_DIR/apache/install_ssl_only.sh" "Install Apache + SSL Only" ;;
+        "fixapache") execute_script "$SCRIPT_DIR/apache/fix_configs.sh" "Fix Apache Configurations" ;;
+        "remove") execute_script "$SCRIPT_DIR/wordpress/remove_websites_databases.sh" "Remove Websites & Databases" ;;
+        "cleanup") execute_script "$SCRIPT_DIR/wordpress/remove_orphaned_databases.sh" "Remove Orphaned Databases" ;;
+        "troubleshoot") execute_script "$SCRIPT_DIR/troubleshooting/troubleshooting_menu.sh" "Troubleshooting Tools" ;;
+        *) 
+            echo -e "${RED}Invalid command: $command${NC}"
+            echo -e "${YELLOW}Usage: $0 <command>${NC}"
+            echo -e "${CYAN}Run without arguments to see the interactive menu${NC}"
+            exit 1
+            ;;
+    esac
 }
 
 # Main execution
 main() {
     check_root
     
+    if [ $# -gt 0 ]; then
+        handle_cli_command "$1"
+        exit $?
+    fi
+    
     while true; do
         show_menu
-        read -p "Select option (0-11): " choice
+        echo -n "Enter option (0-30): "
+        read choice
         
         case $choice in
             1) execute_script "$SCRIPT_DIR/wordpress/install_lamp_stack.sh" "LAMP Stack + WordPress Installation" ;;
-            2) execute_script "$SCRIPT_DIR/backup_restore/backup_restore_menu.sh" "Backup/Restore Menu" ;;
-            3) mysql_management_menu ;;
-            4) execute_script "$SCRIPT_DIR/mysql/check_remote_access.sh" "Check MySQL Remote Access" ;;
-            5) php_management_menu ;;
-            6) execute_script "$SCRIPT_DIR/troubleshooting/troubleshooting_menu.sh" "Troubleshooting Tools" ;;
-            7) execute_script "$SCRIPT_DIR/rclone/rclone_menu.sh" "Rclone Management" ;;
-            8) execute_script "$SCRIPT_DIR/redis/configure.sh" "Redis Configuration" ;;
-            9) system_management_menu ;;
-            10) website_management_menu ;;
-            11) apache_management_menu ;;
+            2) execute_script "$SCRIPT_DIR/backup_restore/backup_wordpress.sh" "WordPress Backup" ;;
+            3) execute_script "$SCRIPT_DIR/backup_restore/restore_wordpress.sh" "WordPress Restore" ;;
+            4) execute_script "$SCRIPT_DIR/backup_restore/transfer_backups.sh" "Transfer Backups to Cloud" ;;
+            5) execute_script "$SCRIPT_DIR/mysql/remote_access.sh" "MySQL Remote Access Configuration" ;;
+            6) execute_script "$SCRIPT_DIR/mysql/check_remote_access.sh" "Check MySQL Remote Access" ;;
+            7) execute_script "$SCRIPT_DIR/mysql/show_databases.sh" "Show MySQL Databases" ;;
+            8) execute_script "$SCRIPT_DIR/mysql/list_users.sh" "List MySQL Users" ;;
+            9) execute_script "$SCRIPT_DIR/mysql/get_database_size.sh" "Get Database Size" ;;
+            10) execute_script "$SCRIPT_DIR/mysql/install_phpmyadmin.sh" "Install phpMyAdmin" ;;
+            11) execute_script "$SCRIPT_DIR/mysql/enable_auto_log_purging.sh" "Enable MySQL Log Purging" ;;
+            12) execute_script "$SCRIPT_DIR/php/adjust_settings.sh" "Adjust PHP Settings" ;;
+            13) execute_script "$SCRIPT_DIR/php/view_info.sh" "View PHP Information" ;;
+            14) execute_script "$SCRIPT_DIR/system/status_check.sh" "System Status Check" ;;
+            15) execute_script "$SCRIPT_DIR/system/disk_space_monitor.sh" "Disk Space Monitor" ;;
+            16) execute_script "$SCRIPT_DIR/system/toggle_root_ssh.sh" "Toggle Root SSH" ;;
+            17) execute_script "$SCRIPT_DIR/system/install_utilities.sh" "Install System Utilities" ;;
+            18) execute_script "$SCRIPT_DIR/rclone/install_package.sh" "Install Rclone Package" ;;
+            19) execute_script "$SCRIPT_DIR/rclone/manage_remote.sh" "Configure Rclone Remote" ;;
+            20) execute_script "$SCRIPT_DIR/rclone/show_remotes.sh" "Show Rclone Remotes" ;;
+            21) execute_script "$SCRIPT_DIR/rclone/show_status.sh" "Check Rclone Status" ;;
+            22) execute_script "$SCRIPT_DIR/rclone/manage_remote.sh" "Manage Cloud Remote" ;;
+            23) execute_script "$SCRIPT_DIR/rclone/setup_backup_cron.sh" "Setup Backup Automation" ;;
+            24) execute_script "$SCRIPT_DIR/rclone/uninstall_package.sh" "Uninstall Rclone" ;;
+            25) execute_script "$SCRIPT_DIR/redis/configure.sh" "Configure Redis Cache" ;;
+            26) execute_script "$SCRIPT_DIR/apache/install_ssl_only.sh" "Install Apache + SSL Only" ;;
+            27) execute_script "$SCRIPT_DIR/apache/fix_configs.sh" "Fix Apache Configurations" ;;
+            28) execute_script "$SCRIPT_DIR/wordpress/remove_websites_databases.sh" "Remove Websites & Databases" ;;
+            29) execute_script "$SCRIPT_DIR/wordpress/remove_orphaned_databases.sh" "Remove Orphaned Databases" ;;
+            30) execute_script "$SCRIPT_DIR/troubleshooting/troubleshooting_menu.sh" "Troubleshooting Tools" ;;
             0) 
                 echo -e "${GREEN}Thank you for using WordPress Master!${NC}"
                 exit 0 
                 ;;
             *) 
-                echo -e "${RED}Invalid option. Please select 0-11.${NC}"
+                echo -e "${RED}Invalid option. Please select 0-30.${NC}"
                 sleep 1
                 ;;
         esac
