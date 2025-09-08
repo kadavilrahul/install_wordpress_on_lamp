@@ -31,6 +31,7 @@ Clone this repository to your server:
 - **Cloud Storage Integration** - Rclone support for Google Drive and other cloud providers
 - **Redis Caching** - Performance optimization with Redis cache configuration
 - **Troubleshooting Tools** - Comprehensive diagnostic and repair utilities
+- **Modular Architecture** - Organized folder structure with dedicated run.sh for each component
 
 ## Configuration
 
@@ -52,7 +53,21 @@ Create a `config.json` file based on `sample_config.json`:
 }
 ```
 
-## Main Menu Options
+## Menu Categories (main.sh)
+
+The new modular system organizes all operations into 9 main categories:
+
+1. **WordPress Management** - Installation and maintenance
+2. **New Website Setup** - Install blank website with Apache + SSL
+3. **Backup & Restore** - Backup and restore operations
+4. **MySQL Database** - Database administration
+5. **PHP Configuration** - PHP settings and information
+6. **System Management** - System utilities and monitoring
+7. **Cloud Storage (Rclone)** - Cloud backup management
+8. **Redis Cache** - Caching configuration
+9. **Troubleshooting** - Diagnostic and repair tools
+
+## Detailed Operations
 
 ### 1. Install LAMP Stack + WordPress
 Complete installation of Apache, MySQL, PHP, and WordPress with:
@@ -61,15 +76,16 @@ Complete installation of Apache, MySQL, PHP, and WordPress with:
 - WordPress installation with security hardening
 - Database creation and user setup
 
-### 2. Backup/Restore
+### 3. Backup/Restore
 - **WordPress Backup** - Creates compressed archives of sites and databases
 - **WordPress Restore** - Restores sites from backup archives
 - **PostgreSQL Support** - Database backup/restore for PostgreSQL
 - **Transfer Backups** - Simplified backup transfer between servers
 
-### 3. Apache + SSL Management
-- SSL certificate installation for existing domains
-- Virtual host configuration
+### 2. New Website Setup (Apache + SSL)
+- Install new blank website with Apache web server
+- Automatic SSL certificate installation with Let's Encrypt
+- Virtual host configuration for new domains
 - Apache configuration repair tools
 - Multi-domain SSL setup with conflict detection
 
@@ -122,19 +138,54 @@ Complete installation of Apache, MySQL, PHP, and WordPress with:
 
 ```
 install_wordpress_on_lamp/
-├── run.sh                    # Main menu system
+├── main.sh                  # New category-based main menu
+├── run.sh                   # Legacy main menu (backward compatibility)
 ├── config.json              # Configuration file (create from sample)
 ├── sample_config.json       # Configuration template
 ├── apache/                  # Apache management scripts
+│   └── run.sh              # Apache-specific menu
 ├── backup_restore/          # Backup and restore utilities
+│   └── run.sh              # Backup/restore menu
 ├── mysql/                   # MySQL management tools
+│   └── run.sh              # MySQL management menu
 ├── php/                     # PHP configuration scripts
+│   └── run.sh              # PHP configuration menu
 ├── rclone/                  # Cloud storage integration
+│   └── run.sh              # Rclone management menu
 ├── redis/                   # Redis caching setup
+│   └── run.sh              # Redis configuration menu
 ├── system/                  # System utilities and monitoring
+│   └── run.sh              # System management menu
 ├── troubleshooting/         # Diagnostic and repair tools
+│   └── run.sh              # Troubleshooting menu
 ├── wordpress/               # WordPress installation scripts
+│   └── run.sh              # WordPress management menu
 └── .examples/              # Example configurations and documentation
+```
+
+## Usage Options
+
+### 1. New Category-Based Menu (Recommended)
+```bash
+sudo bash main.sh                    # Interactive category menu
+sudo bash main.sh wordpress          # WordPress management menu
+sudo bash main.sh mysql              # MySQL management menu
+sudo bash main.sh wordpress install  # Direct command execution
+```
+
+### 2. Direct Folder Access
+```bash
+sudo bash wordpress/run.sh           # WordPress menu
+sudo bash mysql/run.sh               # MySQL menu
+sudo bash apache/run.sh ssl          # Direct SSL installation
+```
+
+### 3. Legacy Commands (Backward Compatible)
+```bash
+sudo bash run.sh                     # Original detailed menu
+sudo bash main.sh lamp               # Install LAMP stack
+sudo bash main.sh backup             # Backup WordPress
+sudo bash main.sh mysql              # MySQL remote access
 ```
 
 ## Requirements
@@ -172,6 +223,9 @@ The backup system supports:
 
 1. **Permission Denied**
    ```bash
+   sudo chmod +x main.sh
+   sudo ./main.sh
+   # Or for legacy:
    sudo chmod +x run.sh
    sudo ./run.sh
    ```
@@ -218,11 +272,15 @@ For issues and questions:
 ## Changelog
 
 ### Recent Updates
+- **NEW: Modular Architecture** - Separate run.sh for each component folder
+- **NEW: Category-Based Menu** - Organized main.sh with 9 categories
+- **NEW: Direct Folder Access** - Run operations directly from component folders
 - Simplified backup transfer system
 - Enhanced SSL conflict detection
 - Improved WordPress site discovery
 - Added comprehensive logging
 - Security hardening improvements
+- Full backward compatibility maintained
 
 ---
 
