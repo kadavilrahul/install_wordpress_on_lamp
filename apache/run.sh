@@ -3,7 +3,7 @@
 # Colors and globals
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
 LOG_FILE="/var/log/wordpress_master_$(date +%Y%m%d_%H%M%S).log"
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Utility functions
 log() { echo "[$1] $2" | tee -a "$LOG_FILE"; }
@@ -20,6 +20,9 @@ check_root() { [[ $EUID -ne 0 ]] && error "This script must be run as root (use 
 execute_script() {
     local script_path="$1"
     local script_name="$2"
+    
+    # Make script_path absolute
+    script_path="$(cd "$(dirname "$script_path")" && pwd)/$(basename "$script_path")"
     
     if [ ! -f "$script_path" ]; then
         error "Script not found: $script_path"
@@ -68,7 +71,7 @@ show_menu() {
     echo -e "${CYAN}============================================================================="
     echo "                          New Website Setup"
     echo -e "=============================================================================${NC}"
-    echo "1. Install New Blank Website     - Set up Apache with SSL for new domain"
+    echo "1. Install New Blank Website      - Set up Apache with SSL for new domain"
     echo "2. Fix Apache Configurations      - Repair broken Apache virtual host configs"
     echo "0. Back to Main Menu"
     echo -e "${CYAN}=============================================================================${NC}"

@@ -3,7 +3,7 @@
 # Colors and globals
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
 LOG_FILE="/var/log/wordpress_master_$(date +%Y%m%d_%H%M%S).log"
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Utility functions
 log() { echo "[$1] $2" | tee -a "$LOG_FILE"; }
@@ -20,31 +20,34 @@ check_root() { [[ $EUID -ne 0 ]] && error "This script must be run as root (use 
 execute_script() {
     local script_path="$1"
     local script_name="$2"
-    
+
+    # Make script_path absolute
+    script_path="$(cd "$(dirname "$script_path")" && pwd)/$(basename "$script_path")"
+
     if [ ! -f "$script_path" ]; then
         error "Script not found: $script_path"
         return 1
     fi
-    
+
     if [ ! -x "$script_path" ]; then
         chmod +x "$script_path"
     fi
-    
+
     info "Launching $script_name..."
-    
+
     # Change to script directory and run, then return to original directory
     local original_dir="$(pwd)"
     cd "$SCRIPT_DIR"
     bash "$script_path"
     local exit_code=$?
     cd "$original_dir"
-    
+
     if [ $exit_code -eq 0 ]; then
         success "$script_name completed successfully"
     else
         warn "$script_name exited with code $exit_code"
     fi
-    
+
     read -p "Press Enter to continue..."
     return $exit_code
 }

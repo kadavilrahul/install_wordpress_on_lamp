@@ -53,7 +53,7 @@ Create a `config.json` file based on `sample_config.json`:
 }
 ```
 
-## Menu Categories (main.sh)
+## Menu Categories (run.sh)
 
 The new modular system organizes all operations into 9 main categories:
 
@@ -138,8 +138,8 @@ Complete installation of Apache, MySQL, PHP, and WordPress with:
 
 ```
 install_wordpress_on_lamp/
-├── main.sh                  # New category-based main menu
-├── run.sh                   # Legacy main menu (backward compatibility)
+├── run.sh                   # New category-based main menu
+├── main.sh                  # Legacy main menu (backward compatibility)
 ├── config.json              # Configuration file (create from sample)
 ├── sample_config.json       # Configuration template
 ├── apache/                  # Apache management scripts
@@ -167,10 +167,10 @@ install_wordpress_on_lamp/
 
 ### 1. New Category-Based Menu (Recommended)
 ```bash
-sudo bash main.sh                    # Interactive category menu
-sudo bash main.sh wordpress          # WordPress management menu
-sudo bash main.sh mysql              # MySQL management menu
-sudo bash main.sh wordpress install  # Direct command execution
+sudo bash run.sh                     # Interactive category menu
+sudo bash run.sh wordpress           # WordPress management menu
+sudo bash run.sh mysql               # MySQL management menu
+sudo bash run.sh wordpress install   # Direct command execution
 ```
 
 ### 2. Direct Folder Access
@@ -183,9 +183,9 @@ sudo bash apache/run.sh ssl          # Direct SSL installation
 ### 3. Legacy Commands (Backward Compatible)
 ```bash
 sudo bash run.sh                     # Original detailed menu
-sudo bash main.sh lamp               # Install LAMP stack
-sudo bash main.sh backup             # Backup WordPress
-sudo bash main.sh mysql              # MySQL remote access
+sudo bash run.sh lamp                # Install LAMP stack
+sudo bash run.sh backup              # Backup WordPress
+sudo bash run.sh mysql               # MySQL remote access
 ```
 
 ## Requirements
@@ -223,8 +223,8 @@ The backup system supports:
 
 1. **Permission Denied**
    ```bash
-   sudo chmod +x main.sh
-   sudo ./main.sh
+    sudo chmod +x main.sh
+    sudo ./run.sh
    # Or for legacy:
    sudo chmod +x run.sh
    sudo ./run.sh
@@ -273,7 +273,7 @@ For issues and questions:
 
 ### Recent Updates
 - **NEW: Modular Architecture** - Separate run.sh for each component folder
-- **NEW: Category-Based Menu** - Organized main.sh with 9 categories
+- **NEW: Category-Based Menu** - Organized run.sh with 9 categories
 - **NEW: Direct Folder Access** - Run operations directly from component folders
 - Simplified backup transfer system
 - Enhanced SSL conflict detection
