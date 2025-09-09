@@ -245,6 +245,10 @@ The backup system supports:
    - Check network connectivity
    - Verify destination directory permissions
 
+5. **Port block or issues**
+   - If rclone etc has issues
+   - Reboot server
+   
 ### Log Files
 
 All operations are logged to `/var/log/wordpress_master_*.log` with timestamps for debugging.

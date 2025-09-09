@@ -37,7 +37,26 @@ select_remote() {
     local num_remotes=$(jq '.rclone_remotes | length' "$CONFIG_FILE" 2>/dev/null)
     [ "$num_remotes" -eq 0 ] && error "No remotes defined in 'rclone_remotes' array."
 
-    echo -e "${YELLOW}Please select name of remote. Default server_backup:${NC}"
+    # Get the default remote name from the first entry
+    local default_remote=$(jq -r '.rclone_remotes[0].remote_name // "server_backup"' "$CONFIG_FILE" 2>/dev/null)
+    
+    # If there's only one remote, auto-select it without prompting
+    if [ "$num_remotes" -eq 1 ]; then
+        info "Auto-selecting remote: $default_remote"
+        CLIENT_ID=$(jq -r ".rclone_remotes[0].client_id" "$CONFIG_FILE")
+        CLIENT_SECRET=$(jq -r ".rclone_remotes[0].client_secret" "$CONFIG_FILE")
+        REMOTE_NAME=$(jq -r ".rclone_remotes[0].remote_name" "$CONFIG_FILE")
+        LOG_FILE="$LOG_DIR/rclone_${REMOTE_NAME}.log"
+        
+        # Check for null/empty values
+        if [[ -z "$CLIENT_ID" || "$CLIENT_ID" == "null" || -z "$CLIENT_SECRET" || "$CLIENT_SECRET" == "null" ]]; then
+            error "Selected remote is missing credentials."
+        fi
+        return 0 # Success
+    fi
+
+    # Multiple remotes - show selection menu
+    echo -e "${YELLOW}Please select name of remote. Default $default_remote:${NC}"
     jq -r '.rclone_remotes[] | .remote_name' "$CONFIG_FILE" | nl
     
     echo "0) Back to main menu"
@@ -620,13 +639,99 @@ manage_remote_loop() {
     done
 }
 
+# Auto-load first remote without selection
+auto_load_remote() {
+    info "Loading default remote from $CONFIG_FILE"
+    [ ! -f "$CONFIG_FILE" ] && error "Configuration file not found: $CONFIG_FILE"
+
+    # Check if config file is valid JSON
+    if ! jq empty "$CONFIG_FILE" 2>/dev/null; then
+        error "Invalid JSON in configuration file: $CONFIG_FILE"
+    fi
+
+    local num_remotes=$(jq '.rclone_remotes | length' "$CONFIG_FILE" 2>/dev/null)
+    [ "$num_remotes" -eq 0 ] && error "No remotes defined in 'rclone_remotes' array."
+
+    # Use environment variable remote name if provided, otherwise use first remote
+    local target_remote_name="${AUTO_REMOTE_NAME:-}"
+    local remote_index=0
+    
+    if [ -n "$target_remote_name" ]; then
+        # Find the index of the specified remote
+        local found_index=$(jq --arg name "$target_remote_name" '.rclone_remotes | map(.remote_name) | index($name)' "$CONFIG_FILE" 2>/dev/null)
+        if [ "$found_index" != "null" ] && [ -n "$found_index" ]; then
+            remote_index=$found_index
+        else
+            warn "Remote '$target_remote_name' not found in config, using first remote"
+        fi
+    fi
+
+    # Load the selected remote
+    CLIENT_ID=$(jq -r ".rclone_remotes[$remote_index].client_id" "$CONFIG_FILE")
+    CLIENT_SECRET=$(jq -r ".rclone_remotes[$remote_index].client_secret" "$CONFIG_FILE")
+    REMOTE_NAME=$(jq -r ".rclone_remotes[$remote_index].remote_name" "$CONFIG_FILE")
+    LOG_FILE="$LOG_DIR/rclone_${REMOTE_NAME}.log"
+    
+    # Check for null/empty values
+    if [[ -z "$CLIENT_ID" || "$CLIENT_ID" == "null" || -z "$CLIENT_SECRET" || "$CLIENT_SECRET" == "null" ]]; then
+        error "Selected remote is missing credentials."
+    fi
+    
+    success "Using remote: $REMOTE_NAME"
+}
+
 # Main execution
 main() {
     check_root
-    echo -e "${CYAN}======================================================================${NC}"
-    echo "                         rclone Manage Website Remote"
-    echo -e "${CYAN}======================================================================${NC}"
-    manage_remote_loop
+    
+    # Check if running in auto mode via environment variables
+    if [ -n "$AUTO_MODE" ] && [ -n "$AUTO_REMOTE_NAME" ]; then
+        # Auto-load the specified remote
+        auto_load_remote
+        
+        case "$AUTO_MODE" in
+            "copy")
+                copy_backups_to_remote
+                ;;
+            "restore")
+                restore_with_browse
+                ;;
+            *)
+                error "Invalid AUTO_MODE: $AUTO_MODE"
+                ;;
+        esac
+        exit $?
+    fi
+    
+    # Handle auto commands from command line arguments
+    case "$1" in
+        "auto_config")
+            auto_load_remote
+            configure_remote
+            exit $?
+            ;;
+        "auto_sizes")
+            auto_load_remote
+            check_sizes
+            exit $?
+            ;;
+        "auto_copy")
+            auto_load_remote
+            copy_backups_to_remote
+            exit $?
+            ;;
+        "auto_restore")
+            auto_load_remote
+            restore_with_browse
+            exit $?
+            ;;
+        *)
+            echo -e "${CYAN}======================================================================${NC}"
+            echo "                         rclone Manage Website Remote"
+            echo -e "${CYAN}======================================================================${NC}"
+            manage_remote_loop
+            ;;
+    esac
 }
 
 # Start script
