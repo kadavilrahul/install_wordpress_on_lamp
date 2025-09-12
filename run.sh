@@ -108,7 +108,7 @@ show_menu() {
     echo "4. MySQL Database               - Database administration and configuration"
     echo "5. PHP Configuration            - PHP settings and information"
     echo "6. System Management            - System utilities and monitoring"
-    echo "7. Cloud Storage (Rclone)       - Cloud backup and storage management"
+    echo "7. Rclone (Cloud Storage)       - Cloud backup and storage management"
     echo "8. Redis Cache                  - Caching configuration"
     echo "9. Troubleshooting              - Diagnostic and repair tools"
     echo ""
