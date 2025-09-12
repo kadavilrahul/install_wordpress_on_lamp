@@ -486,9 +486,9 @@ restore_with_browse() {
         fi
         
         echo -e "${CYAN}----------------------------------------------------------------------${NC}"
-        [ -n "$current_path" ] && echo "  u) Up one level (..)"
-        [ ${#files[@]} -gt 0 ] && echo "  r) Restore files from this directory"
-        echo "  q) Quit to menu"
+        [ -n "$current_path" ] && echo "  u) Up one level (..) - Go back to parent directory"
+        [ ${#files[@]} -gt 0 ] && echo "  r) Restore files from this directory - Select and download files"
+        echo "  q) Quit to menu - Exit browsing and return to main menu"
         echo -e "${CYAN}----------------------------------------------------------------------${NC}"
 
         read -p "Select a dir number, or action [u,r,q]: " choice
@@ -502,7 +502,88 @@ restore_with_browse() {
                    [ "$current_path" == "." ] && current_path=""
                fi
                ;;
-            r) [ ${#files[@]} -gt 0 ] && break ;; # Break to file selection
+            r) 
+                if [ ${#files[@]} -gt 0 ]; then
+                    # File selection integrated into the current display
+                    echo -e "\n${GREEN}Select files to restore (from the files shown above):${NC}"
+                    read -p "Enter file numbers (e.g. '1 3-5'), 'all', or 'q' to cancel: " selection
+                    
+                    if [[ "$selection" == "q" || -z "$selection" ]]; then 
+                        info "Cancelled."
+                        continue
+                    fi
+
+                    local files_to_restore=()
+                    if [[ "$selection" == "all" ]]; then
+                        files_to_restore=("${files[@]}")
+                    else
+                        # Parse selection
+                        selection=$(echo "$selection" | sed -e 's/ ,/,/g' -e 's/, / /g' -e 's/,/ /g')
+                        for part in $selection; do
+                            if [[ "$part" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+                                local start=${BASH_REMATCH[1]}
+                                local end=${BASH_REMATCH[2]}
+                                for j in $(seq "$start" "$end"); do
+                                    local file_index=$((j - file_start_index + 1))
+                                    if [ "$file_index" -ge 1 ] && [ "$file_index" -le "${#files[@]}" ]; then
+                                        local file="${files[file_index-1]}"
+                                        if ! printf '%s\n' "${files_to_restore[@]}" | grep -q -x "$file"; then
+                                            files_to_restore+=("$file")
+                                        fi
+                                    fi
+                                done
+                            elif [[ "$part" =~ ^[0-9]+$ ]]; then
+                                local file_index=$((part - file_start_index + 1))
+                                if [ "$file_index" -ge 1 ] && [ "$file_index" -le "${#files[@]}" ]; then
+                                    local file="${files[file_index-1]}"
+                                    if ! printf '%s\n' "${files_to_restore[@]}" | grep -q -x "$file"; then
+                                        files_to_restore+=("$file")
+                                    fi
+                                fi
+                            fi
+                        done
+                    fi
+
+                    if [ ${#files_to_restore[@]} -eq 0 ]; then 
+                        warn "No valid files selected."
+                        read -p "Press Enter to continue..." 
+                        continue
+                    fi
+
+                    info "The following files will be restored to '$BACKUP_SOURCE':"
+                    for file in "${files_to_restore[@]}"; do 
+                        echo -e "  - ${CYAN}$file${NC}"
+                    done
+                    
+                    read -p "Proceed? (y/n) " -n 1 -r; echo
+                    if [[ $REPLY =~ ^[Yy]$ ]]; then 
+                        # Create backup directory if it doesn't exist
+                        mkdir -p "$BACKUP_SOURCE" || error "Failed to create backup directory: $BACKUP_SOURCE"
+                        
+                        # Restore files
+                        local failed_files=()
+                        for file in "${files_to_restore[@]}"; do
+                            info "Restoring: $file"
+                            if ! rclone copy -v "$rclone_path$file" "$BACKUP_SOURCE" --progress; then
+                                failed_files+=("$file")
+                            fi
+                        done
+                        
+                        if [ ${#failed_files[@]} -eq 0 ]; then
+                            success "All files restored successfully."
+                        else
+                            warn "Some files failed to restore:"
+                            for file in "${failed_files[@]}"; do
+                                echo -e "  - ${RED}$file${NC}"
+                            done
+                        fi
+                        read -p "Press Enter to continue..."
+                        return # Exit restore function after successful restore
+                    else
+                        info "Restore cancelled."
+                    fi
+                fi
+                ;;  
             *)
                 if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -lt "$file_start_index" ]; then
                      local selected_dir_with_slash=${dirs[choice-1]}
@@ -519,89 +600,6 @@ restore_with_browse() {
                 ;;
         esac
     done
-
-    # --- File Selection logic from here ---
-    info "Select files to restore from '${YELLOW}$rclone_path${NC}'"
-
-    local i=1
-    for file in "${files[@]}"; do 
-        echo "  $i) $file"
-        i=$((i+1))
-    done
-
-    read -p "Enter file numbers (e.g. '1 3-5'), 'all', or 'q' to cancel: " selection
-    if [[ "$selection" == "q" || -z "$selection" ]]; then 
-        info "Cancelled."
-        return
-    fi
-
-    local files_to_restore=()
-    if [[ "$selection" == "all" ]]; then
-        files_to_restore=("${files[@]}")
-    else
-        # Clean up selection input
-        selection=$(echo "$selection" | sed -e 's/ ,/,/g' -e 's/, / /g' -e 's/,/ /g')
-        for part in $selection; do
-            if [[ "$part" =~ ^([0-9]+)-([0-9]+)$ ]]; then
-                local start=${BASH_REMATCH[1]}
-                local end=${BASH_REMATCH[2]}
-                for i in $(seq "$start" "$end"); do
-                    if [ "$i" -ge 1 ] && [ "$i" -le "${#files[@]}" ]; then
-                        local file="${files[i-1]}"
-                        # Check if file not already in array
-                        if ! printf '%s\n' "${files_to_restore[@]}" | grep -q -x "$file"; then
-                            files_to_restore+=("$file")
-                        fi
-                    fi
-                done
-            elif [[ "$part" =~ ^[0-9]+$ ]]; then
-                if [ "$part" -ge 1 ] && [ "$part" -le "${#files[@]}" ]; then
-                    local file="${files[part-1]}"
-                    # Check if file not already in array
-                    if ! printf '%s\n' "${files_to_restore[@]}" | grep -q -x "$file"; then
-                        files_to_restore+=("$file")
-                    fi
-                fi
-            fi
-        done
-    fi
-
-    if [ ${#files_to_restore[@]} -eq 0 ]; then 
-        warn "No valid files selected."
-        return
-    fi
-
-    info "The following files will be restored to '$BACKUP_SOURCE':"
-    for file in "${files_to_restore[@]}"; do 
-        echo -e "  - ${CYAN}$file${NC}"
-    done
-    
-    read -p "Proceed? (y/n) " -n 1 -r; echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then 
-        info "Restore cancelled."
-        return
-    fi
-
-    # Create backup directory if it doesn't exist
-    mkdir -p "$BACKUP_SOURCE" || error "Failed to create backup directory: $BACKUP_SOURCE"
-    
-    # Restore files
-    local failed_files=()
-    for file in "${files_to_restore[@]}"; do
-        info "Restoring: $file"
-        if ! rclone copy -v "$rclone_path$file" "$BACKUP_SOURCE" --progress; then
-            failed_files+=("$file")
-        fi
-    done
-    
-    if [ ${#failed_files[@]} -eq 0 ]; then
-        success "All files restored successfully."
-    else
-        warn "Some files failed to restore:"
-        for file in "${failed_files[@]}"; do
-            echo -e "  - ${RED}$file${NC}"
-        done
-    fi
 }
 
 # === Menu System ===
