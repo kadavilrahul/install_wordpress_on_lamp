@@ -71,13 +71,36 @@ show_menu() {
     echo -e "${CYAN}============================================================================="
     echo "                      Backup & Restore Management"
     echo -e "=============================================================================${NC}"
-    echo "1. Backup WordPress Sites       - Create backups of WordPress sites and databases"
-    echo "2. Restore WordPress Sites      - Restore WordPress sites from backups"
-    echo "3. Transfer Backups to Cloud    - Upload backups to cloud storage with rclone"
-    echo "4. Backup PostgreSQL            - Create PostgreSQL database backups"
-    echo "5. Restore PostgreSQL           - Restore PostgreSQL database from backup"
-    echo "6. Advanced Backup Menu         - Access advanced backup/restore options"
+    echo "1. Backup WordPress Sites       ./backup_restore/run.sh backup     # Create backups of WordPress sites and databases"
+    echo "2. Restore WordPress Sites      ./backup_restore/run.sh restore    # Restore WordPress sites from backups"
+    echo "3. Transfer Backups to Cloud    ./backup_restore/run.sh transfer   # Upload backups to cloud storage with rclone"
+    echo "4. Backup PostgreSQL            ./backup_restore/run.sh pgbackup   # Create PostgreSQL database backups"
+    echo "5. Restore PostgreSQL           ./backup_restore/run.sh pgrestore  # Restore PostgreSQL database from backup"
+    echo "6. Advanced Backup Menu         ./backup_restore/run.sh menu       # Access advanced backup/restore options"
     echo "0. Back to Main Menu"
+    echo -e "${CYAN}=============================================================================${NC}"
+}
+
+# Show CLI help
+show_cli_help() {
+    echo -e "${CYAN}============================================================================="
+    echo "                    Backup & Restore CLI Commands"
+    echo -e "=============================================================================${NC}"
+    echo -e "${YELLOW}Usage:${NC} ./backup_restore/run.sh <command>"
+    echo ""
+    echo -e "${GREEN}Available Commands:${NC}"
+    echo "  backup     - Backup WordPress sites"
+    echo "  restore    - Restore WordPress sites"
+    echo "  transfer   - Transfer backups to cloud"
+    echo "  pgbackup   - Backup PostgreSQL"
+    echo "  pgrestore  - Restore PostgreSQL"
+    echo "  menu       - Advanced backup menu"
+    echo "  --help     - Show this help"
+    echo ""
+    echo -e "${CYAN}Examples:${NC}"
+    echo "  ./backup_restore/run.sh backup"
+    echo "  ./backup_restore/run.sh restore"
+    echo "  ./backup_restore/run.sh transfer"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
@@ -92,15 +115,13 @@ handle_cli_command() {
         "pgbackup") execute_script "$SCRIPT_DIR/backup_postgresql.sh" "PostgreSQL Backup" ;;
         "pgrestore") execute_script "$SCRIPT_DIR/restore_postgresql.sh" "PostgreSQL Restore" ;;
         "menu") execute_script "$SCRIPT_DIR/backup_restore_menu.sh" "Advanced Backup Menu" ;;
+        "--help"|"-h"|"help") 
+            show_cli_help
+            exit 0
+            ;;
         *) 
             echo -e "${RED}Invalid command: $command${NC}"
-            echo -e "${YELLOW}Available commands:${NC}"
-            echo "  backup     - Backup WordPress sites"
-            echo "  restore    - Restore WordPress sites"
-            echo "  transfer   - Transfer backups to cloud"
-            echo "  pgbackup   - Backup PostgreSQL"
-            echo "  pgrestore  - Restore PostgreSQL"
-            echo "  menu       - Advanced backup menu"
+            show_cli_help
             exit 1
             ;;
     esac

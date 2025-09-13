@@ -71,8 +71,24 @@ show_menu() {
     echo -e "${CYAN}============================================================================="
     echo "                          Redis Cache Management"
     echo -e "=============================================================================${NC}"
-    echo "1. Configure Redis Cache    - Set up Redis caching for performance"
+    echo "1. Configure Redis Cache    ./redis/run.sh configure    # Set up Redis caching for performance"
     echo "0. Back to Main Menu"
+    echo -e "${CYAN}=============================================================================${NC}"
+}
+
+# Show CLI help
+show_cli_help() {
+    echo -e "${CYAN}============================================================================="
+    echo "                    Redis Cache CLI Commands"
+    echo -e "=============================================================================${NC}"
+    echo -e "${YELLOW}Usage:${NC} ./redis/run.sh <command>"
+    echo ""
+    echo -e "${GREEN}Available Commands:${NC}"
+    echo "  configure - Configure Redis cache"
+    echo "  --help    - Show this help"
+    echo ""
+    echo -e "${CYAN}Examples:${NC}"
+    echo "  ./redis/run.sh configure"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
@@ -82,10 +98,13 @@ handle_cli_command() {
     
     case $command in
         "configure"|"config") execute_script "$SCRIPT_DIR/configure.sh" "Configure Redis Cache" ;;
+        "--help"|"-h"|"help") 
+            show_cli_help
+            exit 0
+            ;;
         *) 
             echo -e "${RED}Invalid command: $command${NC}"
-            echo -e "${YELLOW}Available commands:${NC}"
-            echo "  configure - Configure Redis cache"
+            show_cli_help
             exit 1
             ;;
     esac

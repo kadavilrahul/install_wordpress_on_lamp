@@ -71,10 +71,30 @@ show_menu() {
     echo -e "${CYAN}============================================================================="
     echo "                         WordPress Management Tools"
     echo -e "=============================================================================${NC}"
-    echo "1. Install LAMP Stack + WordPress    - Complete LAMP installation with WordPress setup"
-    echo "2. Remove Websites & Databases       - Clean removal of websites and data"
-    echo "3. Remove Orphaned Databases         - Clean up databases without websites"
+    echo "1. Install LAMP Stack + WordPress    ./wordpress/run.sh install   # Complete LAMP installation with WordPress setup"
+    echo "2. Remove Websites & Databases       ./wordpress/run.sh remove    # Clean removal of websites and data"
+    echo "3. Remove Orphaned Databases         ./wordpress/run.sh cleanup   # Clean up databases without websites"
     echo "0. Back to Main Menu"
+    echo -e "${CYAN}=============================================================================${NC}"
+}
+
+# Show CLI help
+show_cli_help() {
+    echo -e "${CYAN}============================================================================="
+    echo "                    WordPress Management CLI Commands"
+    echo -e "=============================================================================${NC}"
+    echo -e "${YELLOW}Usage:${NC} ./wordpress/run.sh <command>"
+    echo ""
+    echo -e "${GREEN}Available Commands:${NC}"
+    echo "  install   - Install LAMP Stack + WordPress"
+    echo "  remove    - Remove websites & databases"
+    echo "  cleanup   - Remove orphaned databases"
+    echo "  --help    - Show this help"
+    echo ""
+    echo -e "${CYAN}Examples:${NC}"
+    echo "  ./wordpress/run.sh install"
+    echo "  ./wordpress/run.sh remove"
+    echo "  ./wordpress/run.sh cleanup"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
@@ -86,12 +106,13 @@ handle_cli_command() {
         "install"|"lamp") execute_script "$SCRIPT_DIR/install_lamp_stack.sh" "LAMP Stack + WordPress Installation" ;;
         "remove") execute_script "$SCRIPT_DIR/remove_websites_databases.sh" "Remove Websites & Databases" ;;
         "cleanup"|"orphan") execute_script "$SCRIPT_DIR/remove_orphaned_databases.sh" "Remove Orphaned Databases" ;;
+        "--help"|"-h"|"help") 
+            show_cli_help
+            exit 0
+            ;;
         *) 
             echo -e "${RED}Invalid command: $command${NC}"
-            echo -e "${YELLOW}Available commands:${NC}"
-            echo "  install   - Install LAMP Stack + WordPress"
-            echo "  remove    - Remove websites & databases"
-            echo "  cleanup   - Remove orphaned databases"
+            show_cli_help
             exit 1
             ;;
     esac

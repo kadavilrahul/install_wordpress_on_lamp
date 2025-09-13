@@ -71,9 +71,27 @@ show_menu() {
     echo -e "${CYAN}============================================================================="
     echo "                          New Website Setup"
     echo -e "=============================================================================${NC}"
-    echo "1. Install New Blank Website      - Set up Apache with SSL for new domain"
-    echo "2. Fix Apache Configurations      - Repair broken Apache virtual host configs"
+    echo "1. Install New Blank Website      ./apache/run.sh ssl       # Set up Apache with SSL for new domain"
+    echo "2. Fix Apache Configurations      ./apache/run.sh fix       # Repair broken Apache virtual host configs"
     echo "0. Back to Main Menu"
+    echo -e "${CYAN}=============================================================================${NC}"
+}
+
+# Show CLI help
+show_cli_help() {
+    echo -e "${CYAN}============================================================================="
+    echo "                    Apache/Website Setup CLI Commands"
+    echo -e "=============================================================================${NC}"
+    echo -e "${YELLOW}Usage:${NC} ./apache/run.sh <command>"
+    echo ""
+    echo -e "${GREEN}Available Commands:${NC}"
+    echo "  ssl       - Install Apache + SSL Only"
+    echo "  fix       - Fix Apache Configurations"
+    echo "  --help    - Show this help"
+    echo ""
+    echo -e "${CYAN}Examples:${NC}"
+    echo "  ./apache/run.sh ssl"
+    echo "  ./apache/run.sh fix"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
@@ -84,11 +102,13 @@ handle_cli_command() {
     case $command in
         "ssl") execute_script "$SCRIPT_DIR/install_ssl_only.sh" "Install Apache + SSL Only" ;;
         "fixapache"|"fix") execute_script "$SCRIPT_DIR/fix_configs.sh" "Fix Apache Configurations" ;;
+        "--help"|"-h"|"help") 
+            show_cli_help
+            exit 0
+            ;;
         *) 
             echo -e "${RED}Invalid command: $command${NC}"
-            echo -e "${YELLOW}Available commands:${NC}"
-            echo "  ssl       - Install Apache + SSL Only"
-            echo "  fix       - Fix Apache Configurations"
+            show_cli_help
             exit 1
             ;;
     esac

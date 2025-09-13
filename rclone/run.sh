@@ -95,15 +95,15 @@ show_menu() {
     echo -e "${CYAN}============================================================================="
     echo "                        Cloud Storage (Rclone) Management"
     echo -e "=============================================================================${NC}"
-    echo "1. Install Rclone Package        - Download and install rclone with dependencies"
-    echo "2. Configure Remote Storage      - Set up Google Drive authentication for '$DEFAULT_REMOTE'"
-    echo "3. Show Configured Remotes       - Display remotes and accessibility status"
-    echo "4. Check Rclone Status           - View rclone setup and configuration details"
-    echo "5. Check Folder Sizes            - View local and remote storage usage"
-    echo "6. Copy Backups to Remote        - Upload local backups to Drive folder"
-    echo "7. Restore Backups from Drive    - Download backups from Drive to local (Browse)"
-    echo "8. Setup Backup Automation       - Configure automatic backup scheduling"
-    echo "9. Uninstall Rclone              - Remove rclone and all configurations"
+    echo "1. Install Rclone Package        ./rclone/run.sh install    # Download and install rclone with dependencies"
+    echo "2. Configure Remote Storage      ./rclone/run.sh config     # Set up Google Drive authentication for '$DEFAULT_REMOTE'"
+    echo "3. Show Configured Remotes       ./rclone/run.sh remotes    # Display remotes and accessibility status"
+    echo "4. Check Rclone Status           ./rclone/run.sh status     # View rclone setup and configuration details"
+    echo "5. Check Folder Sizes            ./rclone/run.sh sizes      # View local and remote storage usage"
+    echo "6. Copy Backups to Remote        ./rclone/run.sh copy       # Upload local backups to Drive folder"
+    echo "7. Restore Backups from Drive    ./rclone/run.sh restore    # Download backups from Drive to local (Browse)"
+    echo "8. Setup Backup Automation       ./rclone/run.sh cron       # Configure automatic backup scheduling"
+    echo "9. Uninstall Rclone              ./rclone/run.sh uninstall  # Remove rclone and all configurations"
     echo "0. Back to Main Menu"
     echo -e "${CYAN}=============================================================================${NC}"
 }
@@ -230,6 +230,33 @@ auto_restore_backups() {
     read -p "Press Enter to continue..."
 }
 
+# Show CLI help
+show_cli_help() {
+    echo -e "${CYAN}============================================================================="
+    echo "                    Cloud Storage (Rclone) CLI Commands"
+    echo -e "=============================================================================${NC}"
+    echo -e "${YELLOW}Usage:${NC} ./rclone/run.sh <command>"
+    echo ""
+    echo -e "${GREEN}Available Commands:${NC}"
+    echo "  install    - Install rclone package"
+    echo "  config     - Configure remote storage"
+    echo "  remotes    - Show configured remotes"
+    echo "  status     - Check rclone status"
+    echo "  sizes      - Check folder sizes"
+    echo "  copy       - Copy backups to remote"
+    echo "  restore    - Restore backups from remote"
+    echo "  cron       - Setup backup automation"
+    echo "  uninstall  - Uninstall rclone"
+    echo "  --help     - Show this help"
+    echo ""
+    echo -e "${CYAN}Examples:${NC}"
+    echo "  ./rclone/run.sh install"
+    echo "  ./rclone/run.sh config"
+    echo "  ./rclone/run.sh copy"
+    echo "  ./rclone/run.sh cron"
+    echo -e "${CYAN}=============================================================================${NC}"
+}
+
 # Handle CLI arguments
 handle_cli_command() {
     local command="$1"
@@ -244,18 +271,13 @@ handle_cli_command() {
         "restore") auto_restore_backups ;;
         "cron"|"automation") execute_script "$SCRIPT_DIR/setup_backup_cron.sh" "Setup Backup Automation" ;;
         "uninstall") execute_script "$SCRIPT_DIR/uninstall_package.sh" "Uninstall Rclone" ;;
+        "--help"|"-h"|"help") 
+            show_cli_help
+            exit 0
+            ;;
         *) 
             echo -e "${RED}Invalid command: $command${NC}"
-            echo -e "${YELLOW}Available commands:${NC}"
-            echo "  install    - Install rclone package"
-            echo "  config     - Configure remote storage"
-            echo "  remotes    - Show configured remotes"
-            echo "  status     - Check rclone status"
-            echo "  sizes      - Check folder sizes"
-            echo "  copy       - Copy backups to remote"
-            echo "  restore    - Restore backups from remote"
-            echo "  cron       - Setup backup automation"
-            echo "  uninstall  - Uninstall rclone"
+            show_cli_help
             exit 1
             ;;
     esac

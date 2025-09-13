@@ -71,9 +71,27 @@ show_menu() {
     echo -e "${CYAN}============================================================================="
     echo "                        Troubleshooting Tools"
     echo -e "=============================================================================${NC}"
-    echo "1. Launch Troubleshooting Menu   - Access comprehensive troubleshooting tools"
-    echo "2. View Database Fix Guide       - Read DATABASE_FIX.md documentation"
+    echo "1. Launch Troubleshooting Menu   ./troubleshooting/run.sh menu     # Access comprehensive troubleshooting tools"
+    echo "2. View Database Fix Guide       ./troubleshooting/run.sh guide    # Read DATABASE_FIX.md documentation"
     echo "0. Back to Main Menu"
+    echo -e "${CYAN}=============================================================================${NC}"
+}
+
+# Show CLI help
+show_cli_help() {
+    echo -e "${CYAN}============================================================================="
+    echo "                    Troubleshooting CLI Commands"
+    echo -e "=============================================================================${NC}"
+    echo -e "${YELLOW}Usage:${NC} ./troubleshooting/run.sh <command>"
+    echo ""
+    echo -e "${GREEN}Available Commands:${NC}"
+    echo "  menu      - Launch troubleshooting menu"
+    echo "  guide     - View database fix guide"
+    echo "  --help    - Show this help"
+    echo ""
+    echo -e "${CYAN}Examples:${NC}"
+    echo "  ./troubleshooting/run.sh menu"
+    echo "  ./troubleshooting/run.sh guide"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
@@ -90,11 +108,13 @@ handle_cli_command() {
                 error "DATABASE_FIX.md not found"
             fi
             ;;
+        "--help"|"-h"|"help") 
+            show_cli_help
+            exit 0
+            ;;
         *) 
             echo -e "${RED}Invalid command: $command${NC}"
-            echo -e "${YELLOW}Available commands:${NC}"
-            echo "  menu      - Launch troubleshooting menu"
-            echo "  guide     - View database fix guide"
+            show_cli_help
             exit 1
             ;;
     esac

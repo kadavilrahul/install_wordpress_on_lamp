@@ -4,6 +4,23 @@ WWW_PATH="/var/www"
 BACKUP_DIR="/website_backups"
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 
+show_usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo "Options:"
+    echo "  --site <site_name>    Backup specific site"
+    echo "  --all                 Backup all sites"
+    echo "  --first               Backup first site only"
+    echo "  --list                List available sites"
+    echo "  -h, --help            Show this help"
+    echo ""
+    echo "Examples:"
+    echo "  $0 --site nilgiristores.in"
+    echo "  $0 --all"
+    echo "  $0 --first"
+    echo ""
+    echo "If no arguments provided, interactive menu will be shown."
+}
+
 is_wordpress() {
     [ -f "$1/wp-config.php" ] || ([ -f "$1/wp-config-sample.php" ] && [ -d "$1/wp-includes" ])
 }
@@ -34,10 +51,7 @@ find_sites() {
     done
 }
 
-main() {
-    [ ! -d "$WWW_PATH" ] && { echo "Error: $WWW_PATH not found"; exit 1; }
-    mkdir -p "$BACKUP_DIR"
-    
+interactive_mode() {
     sites=($(find_sites))
     [ ${#sites[@]} -eq 0 ] && { echo "No WordPress sites found"; exit 1; }
     
@@ -60,9 +74,59 @@ main() {
         echo "Invalid selection"
         exit 1
     fi
+}
+
+main() {
+    [ ! -d "$WWW_PATH" ] && { echo "Error: $WWW_PATH not found"; exit 1; }
+    mkdir -p "$BACKUP_DIR"
+    
+    sites=($(find_sites))
+    [ ${#sites[@]} -eq 0 ] && { echo "No WordPress sites found"; exit 1; }
+    
+    case "${1:-}" in
+        --site)
+            [ -z "$2" ] && { echo "Error: Site name required"; exit 1; }
+            site_found=false
+            for site in "${sites[@]}"; do
+                if [ "$site" = "$2" ]; then
+                    backup_site "$WWW_PATH/$site" "$site"
+                    site_found=true
+                    break
+                fi
+            done
+            [ "$site_found" = false ] && { echo "Error: Site '$2' not found"; exit 1; }
+            ;;
+        --all)
+            for site in "${sites[@]}"; do
+                backup_site "$WWW_PATH/$site" "$site"
+            done
+            ;;
+        --first)
+            backup_site "$WWW_PATH/${sites[0]}" "${sites[0]}"
+            ;;
+        --list)
+            echo "Available WordPress sites:"
+            for site in "${sites[@]}"; do
+                echo "  $site"
+            done
+            exit 0
+            ;;
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        "")
+            interactive_mode
+            ;;
+        *)
+            echo "Error: Unknown option '$1'"
+            show_usage
+            exit 1
+            ;;
+    esac
     
     find "$BACKUP_DIR" -name "*.tar.gz" -mtime +7 -delete 2>/dev/null
     echo "Backup completed"
 }
 
-main
+main "$@"

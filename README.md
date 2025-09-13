@@ -23,15 +23,14 @@ Clone this repository to your server:
 
 ## Features
 
-- **Complete LAMP Stack Installation** - Automated Apache, MySQL, PHP, and WordPress setup
-- **Backup & Restore System** - WordPress site and database backup/restore with cloud storage integration
-- **SSL Certificate Management** - Automated SSL setup with Let's Encrypt and conflict detection
-- **MySQL Management** - Remote access configuration, user management, and database operations
-- **System Monitoring** - Server health checks, disk space monitoring, and performance optimization
-- **Cloud Storage Integration** - Rclone support for Google Drive and other cloud providers
-- **Redis Caching** - Performance optimization with Redis cache configuration
-- **Troubleshooting Tools** - Comprehensive diagnostic and repair utilities
-- **Modular Architecture** - Organized folder structure with dedicated run.sh for each component
+✅ **Complete LAMP Stack** - Automated Apache, MySQL, PHP, and WordPress setup  
+✅ **Backup & Restore** - WordPress sites and databases with cloud storage integration  
+✅ **SSL Management** - Automated Let's Encrypt certificates with conflict detection  
+✅ **CLI & Interactive** - Both command-line and menu-driven interfaces  
+✅ **Cloud Integration** - Rclone support for Google Drive and other providers  
+✅ **Performance Tools** - Redis caching, PHP optimization, system monitoring  
+✅ **Troubleshooting** - Comprehensive diagnostic and repair utilities  
+✅ **Modular Design** - Organized components with individual CLI support
 
 ## Configuration
 
@@ -53,139 +52,142 @@ Create a `config.json` file based on `sample_config.json`:
 }
 ```
 
-## Menu Categories (run.sh)
+## Quick Start
 
-The new modular system organizes all operations into 9 main categories:
+### Interactive Menu
+```bash
+sudo bash run.sh                    # Main category menu
+sudo bash mysql/run.sh              # MySQL management
+sudo bash backup_restore/run.sh     # Backup operations
+```
 
-1. **WordPress Management** - Installation and maintenance
-2. **New Website Setup** - Install blank website with Apache + SSL
-3. **Backup & Restore** - Backup and restore operations
-4. **MySQL Database** - Database administration
-5. **PHP Configuration** - PHP settings and information
-6. **System Management** - System utilities and monitoring
-7. **Cloud Storage (Rclone)** - Cloud backup management
-8. **Redis Cache** - Caching configuration
-9. **Troubleshooting** - Diagnostic and repair tools
+### Direct CLI Commands
+```bash
+# WordPress operations
+sudo bash wordpress/run.sh install        # Install LAMP + WordPress
+sudo bash wordpress/run.sh remove         # Remove sites
 
-## Detailed Operations
+# Backup operations  
+sudo bash backup_restore/backup_wordpress.sh --first    # Backup first site
+sudo bash backup_restore/backup_wordpress.sh --all      # Backup all sites
 
-### 1. Install LAMP Stack + WordPress
-Complete installation of Apache, MySQL, PHP, and WordPress with:
-- Automatic package installation and configuration
-- SSL certificate setup with Let's Encrypt
-- WordPress installation with security hardening
-- Database creation and user setup
+# System management
+sudo bash mysql/run.sh remote             # Configure MySQL remote access
+sudo bash apache/run.sh ssl               # Install SSL certificate
+sudo bash system/run.sh status            # Check system status
+sudo bash rclone/run.sh config             # Configure cloud storage
+```
 
-### 3. Backup/Restore
-- **WordPress Backup** - Creates compressed archives of sites and databases
-- **WordPress Restore** - Restores sites from backup archives
-- **PostgreSQL Support** - Database backup/restore for PostgreSQL
-- **Transfer Backups** - Simplified backup transfer between servers
+## Component Categories
 
-### 2. New Website Setup (Apache + SSL)
-- Install new blank website with Apache web server
-- Automatic SSL certificate installation with Let's Encrypt
-- Virtual host configuration for new domains
-- Apache configuration repair tools
-- Multi-domain SSL setup with conflict detection
+1. **wordpress** - LAMP installation and WordPress management
+2. **apache** - Website setup with SSL certificates  
+3. **backup_restore** - Backup and restore operations
+4. **mysql** - Database administration and remote access
+5. **php** - PHP configuration and optimization
+6. **system** - System monitoring and utilities
+7. **rclone** - Cloud storage integration
+8. **redis** - Caching configuration
+9. **troubleshooting** - Diagnostic tools
 
-### 4. MySQL Management
-- **Remote Access Setup** - Configure MySQL for remote connections
-- **Database Operations** - Show databases, list users, check sizes
-- **phpMyAdmin Installation** - Web-based MySQL administration
-- **Security Configuration** - User management and access control
+## Key Operations
 
-### 5. PHP Management
-- PHP configuration optimization
-- Version information and diagnostics
-- Performance tuning for WordPress
+### WordPress Management
+```bash
+./wordpress/run.sh install     # Complete LAMP + WordPress installation
+./wordpress/run.sh remove      # Remove websites and databases  
+./wordpress/run.sh cleanup     # Clean orphaned databases
+```
 
-### 6. Troubleshooting
-- System diagnostics and health checks
-- Common issue resolution
-- Log analysis and error detection
-- Service status monitoring
+### Apache & SSL
+```bash
+./apache/run.sh ssl            # Install website with SSL certificate
+./apache/run.sh fix            # Repair Apache configurations
+```
 
-### 7. Rclone Management
-- Cloud storage configuration
-- Google Drive integration
-- Backup synchronization
-- Remote storage management
+### Backup & Restore
+```bash
+./backup_restore/backup_wordpress.sh --first     # Backup first site
+./backup_restore/backup_wordpress.sh --all       # Backup all sites
+./backup_restore/run.sh restore                  # Restore from backups
+./backup_restore/run.sh transfer                 # Transfer to cloud
+```
 
-### 8. Redis Configuration
-- Redis installation and setup
-- Memory optimization
-- WordPress cache integration
-- Performance monitoring
+### MySQL Database  
+```bash
+./mysql/run.sh remote          # Configure remote access
+./mysql/run.sh show            # Show databases
+./mysql/run.sh users           # List MySQL users
+./mysql/run.sh phpmyadmin      # Install phpMyAdmin
+```
 
-### 9. System Management
-- **System Status** - Resource usage and service monitoring
-- **Disk Space Monitor** - Storage cleanup and monitoring
-- **SSH Configuration** - Root access management
-- **Utility Installation** - Common system tools
+### System & Performance
+```bash
+./system/run.sh status         # System health check
+./system/run.sh disk           # Disk space monitor
+./php/run.sh adjust            # Optimize PHP settings
+./redis/run.sh configure       # Setup Redis caching
+```
 
-### 10. Website Management
-- Remove websites and databases
-- Clean up orphaned databases
-- Site maintenance operations
+### Cloud Storage
+```bash
+./rclone/run.sh install        # Install rclone
+./rclone/run.sh config         # Configure Google Drive
+./rclone/run.sh copy           # Upload backups to cloud
+./rclone/run.sh cron           # Setup automated backups
+```
 
-### 11. Apache Management
-- Virtual host management
-- SSL certificate operations
-- Configuration troubleshooting
+### Troubleshooting
+```bash
+./troubleshooting/run.sh menu  # Launch diagnostic tools
+./troubleshooting/run.sh guide # View database fix guide
+```
 
 ## Directory Structure
 
 ```
 install_wordpress_on_lamp/
-├── run.sh                   # New category-based main menu
-├── main.sh                  # Legacy main menu (backward compatibility)
-├── config.json              # Configuration file (create from sample)
+├── run.sh                   # Main category menu
+├── main.sh                  # Legacy menu (backward compatibility)  
+├── config.json              # Your configuration (create from sample)
 ├── sample_config.json       # Configuration template
-├── apache/                  # Apache management scripts
-│   └── run.sh              # Apache-specific menu
-├── backup_restore/          # Backup and restore utilities
-│   └── run.sh              # Backup/restore menu
-├── mysql/                   # MySQL management tools
-│   └── run.sh              # MySQL management menu
-├── php/                     # PHP configuration scripts
-│   └── run.sh              # PHP configuration menu
-├── rclone/                  # Cloud storage integration
-│   └── run.sh              # Rclone management menu
-├── redis/                   # Redis caching setup
-│   └── run.sh              # Redis configuration menu
-├── system/                  # System utilities and monitoring
-│   └── run.sh              # System management menu
-├── troubleshooting/         # Diagnostic and repair tools
-│   └── run.sh              # Troubleshooting menu
-├── wordpress/               # WordPress installation scripts
-│   └── run.sh              # WordPress management menu
-└── .examples/              # Example configurations and documentation
+├── apache/run.sh            # Apache & SSL management
+├── backup_restore/run.sh    # Backup & restore operations
+├── mysql/run.sh             # Database management  
+├── php/run.sh               # PHP configuration
+├── rclone/run.sh            # Cloud storage integration
+├── redis/run.sh             # Caching setup
+├── system/run.sh            # System monitoring & utilities
+├── troubleshooting/run.sh   # Diagnostic tools
+└── wordpress/run.sh         # WordPress & LAMP installation
 ```
 
-## Usage Options
+**Each component has both interactive menus and CLI support:**
+- `./mysql/run.sh` - Interactive menu
+- `./mysql/run.sh --help` - Show CLI commands  
+- `./mysql/run.sh remote` - Direct command execution
 
-### 1. New Category-Based Menu (Recommended)
+## Usage Modes
+
+### 1. Interactive Menus
 ```bash
-sudo bash run.sh                     # Interactive category menu
-sudo bash run.sh wordpress           # WordPress management menu
-sudo bash run.sh mysql               # MySQL management menu
-sudo bash run.sh wordpress install   # Direct command execution
+sudo bash run.sh                     # Main category menu
+sudo bash mysql/run.sh               # MySQL management menu
+sudo bash backup_restore/run.sh      # Backup & restore menu
 ```
 
-### 2. Direct Folder Access
+### 2. Direct CLI Commands  
 ```bash
-sudo bash wordpress/run.sh           # WordPress menu
-sudo bash mysql/run.sh               # MySQL menu
-sudo bash apache/run.sh ssl          # Direct SSL installation
+sudo bash mysql/run.sh remote        # Configure MySQL remote access
+sudo bash apache/run.sh ssl          # Install SSL certificate
+sudo bash backup_restore/backup_wordpress.sh --all  # Backup all sites
 ```
 
-### 3. Legacy Commands (Backward Compatible)
+### 3. Help & Discovery
 ```bash
-sudo bash run.sh                     # Original detailed menu
-sudo bash run.sh lamp                # Install LAMP stack
-sudo bash run.sh backup              # Backup WordPress
-sudo bash run.sh mysql               # MySQL remote access
+sudo bash mysql/run.sh --help        # Show MySQL CLI commands
+sudo bash rclone/run.sh --help       # Show cloud storage commands
+sudo bash backup_restore/backup_wordpress.sh --help  # Backup options
 ```
 
 ## Requirements
@@ -195,97 +197,81 @@ sudo bash run.sh mysql               # MySQL remote access
 - **Network:** Internet connection for package downloads
 - **Storage:** Minimum 2GB free space
 
-## Security Features
+## Automated Backup System
 
-- **SSL/TLS Encryption** - Automatic HTTPS setup
-- **Firewall Configuration** - UFW integration and recommendations
-- **Secure MySQL Setup** - Remote access with security warnings
-- **SSH Key Management** - Automated key-based authentication
-- **WordPress Hardening** - Security best practices implementation
+**Backup Features:**
+- ✅ Complete WordPress site and database backups
+- ✅ Cloud integration with Google Drive/rclone
+- ✅ Automated cron scheduling  
+- ✅ Compression and cleanup
+- ✅ CLI and interactive modes
 
-## Backup System
+**Backup Commands:**
+```bash
+# Backup specific site
+./backup_restore/backup_wordpress.sh --site example.com
 
-The backup system supports:
-- **WordPress Sites** - Complete site and database backups
-- **Automatic Discovery** - Finds WordPress installations automatically
-- **Compression** - Efficient tar.gz archives
-- **Cloud Integration** - Rclone support for remote storage
-- **Retention Management** - Automatic cleanup of old backups
+# Backup all WordPress sites  
+./backup_restore/backup_wordpress.sh --all
 
-### Backup Locations
-- Local backups: `/website_backups/`
-- WordPress sites: `/var/www/`
+# Setup automated daily backups
+./rclone/run.sh cron
+```
+
+**Storage Locations:**
+- Local: `/website_backups/`
+- WordPress: `/var/www/`  
 - Logs: `/var/log/wordpress_master_*.log`
 
 ## Troubleshooting
 
+### Quick Fixes
+```bash
+# Fix permissions
+sudo chmod +x run.sh && sudo bash run.sh
+
+# Check system status  
+sudo bash system/run.sh status
+
+# View troubleshooting guide
+sudo bash troubleshooting/run.sh guide
+
+# Check service status
+sudo systemctl status mysql apache2 redis-server
+```
+
 ### Common Issues
+- **Permission Denied** → Run with `sudo` and check file permissions
+- **MySQL Connection** → Verify service running and config.json credentials  
+- **SSL Failed** → Check DNS pointing to server IP and domain accessibility
+- **Backup Issues** → Check disk space and network connectivity
+- **Port Issues** → Reboot server if rclone/network has problems
 
-1. **Permission Denied**
-   ```bash
-    sudo chmod +x main.sh
-    sudo ./run.sh
-   # Or for legacy:
-   sudo chmod +x run.sh
-   sudo ./run.sh
-   ```
+### Debug Logs
+All operations logged to: `/var/log/wordpress_master_*.log`
 
-2. **MySQL Connection Failed**
-   - Check MySQL service: `sudo systemctl status mysql`
-   - Verify credentials in config.json
-   - Check firewall settings
+## Recent Updates
 
-3. **SSL Certificate Failed**
-   - Verify DNS points to server IP
-   - Check domain accessibility
-   - Review Apache error logs
+✅ **Full CLI Support** - Every menu option now has direct CLI commands  
+✅ **Enhanced Backup System** - Fixed cron jobs with proper CLI integration  
+✅ **Modular Architecture** - Independent run.sh for each component  
+✅ **Improved Help System** - `--help` support across all components  
+✅ **Better Error Handling** - Comprehensive logging and diagnostics
 
-4. **Backup Transfer Issues**
-   - Ensure SSH access to destination
-   - Check network connectivity
-   - Verify destination directory permissions
+## Requirements & Security
 
-5. **Port block or issues**
-   - If rclone etc has issues
-   - Reboot server
-   
-### Log Files
+**System Requirements:**
+- Ubuntu 18.04+ or Debian 9+
+- Root/sudo access
+- 2GB+ free space
+- Internet connection
 
-All operations are logged to `/var/log/wordpress_master_*.log` with timestamps for debugging.
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## License
-
-This project is open source. Use at your own risk and ensure you understand the security implications of the configurations.
-
-## Support
-
-For issues and questions:
-1. Check the troubleshooting section
-2. Review log files for error details
-3. Ensure all requirements are met
-4. Test on a non-production server first
-
-## Changelog
-
-### Recent Updates
-- **NEW: Modular Architecture** - Separate run.sh for each component folder
-- **NEW: Category-Based Menu** - Organized run.sh with 9 categories
-- **NEW: Direct Folder Access** - Run operations directly from component folders
-- Simplified backup transfer system
-- Enhanced SSL conflict detection
-- Improved WordPress site discovery
-- Added comprehensive logging
-- Security hardening improvements
-- Full backward compatibility maintained
+**Security Features:**
+- SSL/TLS encryption with Let's Encrypt
+- MySQL security hardening  
+- WordPress security best practices
+- Firewall integration recommendations
 
 ---
 
-**⚠️ Important:** Always test on a development server before using in production. This tool makes significant system changes and should be used by experienced administrators.
+**⚠️ Production Warning:** Test on development servers first. This tool makes significant system changes.

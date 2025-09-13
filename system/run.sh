@@ -71,11 +71,32 @@ show_menu() {
     echo -e "${CYAN}============================================================================="
     echo "                          System Management Tools"
     echo -e "=============================================================================${NC}"
-    echo "1. System Status Check        - View system resources and service status"
-    echo "2. Disk Space Monitor         - Monitor storage usage and cleanup"
-    echo "3. Toggle Root SSH Access     - Enable or disable SSH root login"
-    echo "4. Install System Utilities   - Install common system tools"
+    echo "1. System Status Check        ./system/run.sh status    # View system resources and service status"
+    echo "2. Disk Space Monitor         ./system/run.sh disk      # Monitor storage usage and cleanup"
+    echo "3. Toggle Root SSH Access     ./system/run.sh ssh       # Enable or disable SSH root login"
+    echo "4. Install System Utilities   ./system/run.sh utils     # Install common system tools"
     echo "0. Back to Main Menu"
+    echo -e "${CYAN}=============================================================================${NC}"
+}
+
+# Show CLI help
+show_cli_help() {
+    echo -e "${CYAN}============================================================================="
+    echo "                    System Management CLI Commands"
+    echo -e "=============================================================================${NC}"
+    echo -e "${YELLOW}Usage:${NC} ./system/run.sh <command>"
+    echo ""
+    echo -e "${GREEN}Available Commands:${NC}"
+    echo "  status    - System status check"
+    echo "  disk      - Disk space monitor"
+    echo "  ssh       - Toggle root SSH access"
+    echo "  utils     - Install system utilities"
+    echo "  --help    - Show this help"
+    echo ""
+    echo -e "${CYAN}Examples:${NC}"
+    echo "  ./system/run.sh status"
+    echo "  ./system/run.sh disk"
+    echo "  ./system/run.sh ssh"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
@@ -88,13 +109,13 @@ handle_cli_command() {
         "disk") execute_script "$SCRIPT_DIR/disk_space_monitor.sh" "Disk Space Monitor" ;;
         "ssh") execute_script "$SCRIPT_DIR/toggle_root_ssh.sh" "Toggle Root SSH Access" ;;
         "utils"|"utilities") execute_script "$SCRIPT_DIR/install_utilities.sh" "Install System Utilities" ;;
+        "--help"|"-h"|"help") 
+            show_cli_help
+            exit 0
+            ;;
         *) 
             echo -e "${RED}Invalid command: $command${NC}"
-            echo -e "${YELLOW}Available commands:${NC}"
-            echo "  status    - System status check"
-            echo "  disk      - Disk space monitor"
-            echo "  ssh       - Toggle root SSH access"
-            echo "  utils     - Install system utilities"
+            show_cli_help
             exit 1
             ;;
     esac

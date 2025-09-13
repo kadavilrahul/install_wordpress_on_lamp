@@ -71,15 +71,40 @@ show_menu() {
     echo -e "${CYAN}============================================================================="
     echo "                         MySQL Database Management"
     echo -e "=============================================================================${NC}"
-    echo "1. Configure Remote Access       - Set up MySQL for remote connections"
-    echo "2. Check Remote Access Status    - Verify MySQL remote accessibility"
-    echo "3. Show Databases                - Display all databases in MySQL server"
-    echo "4. List Users                    - Show all MySQL user accounts and permissions"
-    echo "5. Get Database Size             - Check storage usage of databases"
-    echo "6. Install phpMyAdmin            - Set up web-based MySQL administration"
-    echo "7. Enable Auto Log Purging       - Configure automatic binary log cleanup"
-    echo "8. Remote Access Menu            - Advanced remote access configuration"
+    echo "1. Configure Remote Access       ./mysql/run.sh remote      # Set up MySQL for remote connections"
+    echo "2. Check Remote Access Status    ./mysql/run.sh check       # Verify MySQL remote accessibility"
+    echo "3. Show Databases                ./mysql/run.sh show        # Display all databases in MySQL server"
+    echo "4. List Users                    ./mysql/run.sh users       # Show all MySQL user accounts and permissions"
+    echo "5. Get Database Size             ./mysql/run.sh size        # Check storage usage of databases"
+    echo "6. Install phpMyAdmin            ./mysql/run.sh phpmyadmin  # Set up web-based MySQL administration"
+    echo "7. Enable Auto Log Purging       ./mysql/run.sh purge       # Configure automatic binary log cleanup"
+    echo "8. Remote Access Menu            ./mysql/run.sh menu        # Advanced remote access configuration"
     echo "0. Back to Main Menu"
+    echo -e "${CYAN}=============================================================================${NC}"
+}
+
+# Show CLI help
+show_cli_help() {
+    echo -e "${CYAN}============================================================================="
+    echo "                    MySQL CLI Commands"
+    echo -e "=============================================================================${NC}"
+    echo -e "${YELLOW}Usage:${NC} ./mysql/run.sh <command>"
+    echo ""
+    echo -e "${GREEN}Available Commands:${NC}"
+    echo "  remote      - Configure MySQL remote access"
+    echo "  check       - Check remote access status"  
+    echo "  show        - Show databases"
+    echo "  users       - List MySQL users"
+    echo "  size        - Get database size"
+    echo "  phpmyadmin  - Install phpMyAdmin"
+    echo "  purge       - Enable auto log purging"
+    echo "  menu        - Remote access menu"
+    echo "  --help      - Show this help"
+    echo ""
+    echo -e "${CYAN}Examples:${NC}"
+    echo "  ./mysql/run.sh remote"
+    echo "  ./mysql/run.sh show"
+    echo "  ./mysql/run.sh users"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
@@ -96,17 +121,13 @@ handle_cli_command() {
         "phpmyadmin") execute_script "$SCRIPT_DIR/install_phpmyadmin.sh" "Install phpMyAdmin" ;;
         "purge") execute_script "$SCRIPT_DIR/enable_auto_log_purging.sh" "Enable MySQL Log Purging" ;;
         "menu") execute_script "$SCRIPT_DIR/remote_access_menu.sh" "Remote Access Menu" ;;
+        "--help"|"-h"|"help") 
+            show_cli_help
+            exit 0
+            ;;
         *) 
             echo -e "${RED}Invalid command: $command${NC}"
-            echo -e "${YELLOW}Available commands:${NC}"
-            echo "  remote      - Configure MySQL remote access"
-            echo "  check       - Check remote access status"
-            echo "  show        - Show databases"
-            echo "  users       - List MySQL users"
-            echo "  size        - Get database size"
-            echo "  phpmyadmin  - Install phpMyAdmin"
-            echo "  purge       - Enable auto log purging"
-            echo "  menu        - Remote access menu"
+            show_cli_help
             exit 1
             ;;
     esac

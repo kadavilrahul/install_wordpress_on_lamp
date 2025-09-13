@@ -35,8 +35,8 @@ echo "3) Remove all backup cron jobs"
 read -p "Select: " choice
 
 case $choice in
-    1) backup_cmd="echo \"1\" | bash $BACKUP_SCRIPT" ;;
-    2) backup_cmd="echo \"2\" | bash $BACKUP_SCRIPT" ;;
+    1) backup_cmd="bash $BACKUP_SCRIPT --first" ;;
+    2) backup_cmd="bash $BACKUP_SCRIPT --all" ;;
     3) 
         echo "Current backup cron jobs:"
         crontab -l 2>/dev/null | grep -E "($BACKUP_SCRIPT|rclone.*$BACKUP_DIR|find $BACKUP_DIR)" || echo "None found"
@@ -57,18 +57,18 @@ current_crons=$(crontab -l 2>/dev/null | grep -v "$BACKUP_SCRIPT" | grep -v "rcl
 new_crons="$current_crons"
 
 [ -n "$new_crons" ] && new_crons="$new_crons"$'\n'
-new_crons="${new_crons}30 02 * * * $backup_cmd"$'\n'
+new_crons="${new_crons}00 01 * * * $backup_cmd"$'\n'
 
 if [ ${#sites[@]} -gt 0 ]; then
     for site_info in "${sites[@]}"; do
         website=$(echo "$site_info" | cut -d: -f1)
         backup_path=$(echo "$site_info" | cut -d: -f2)
-        new_crons="${new_crons}00 04 * * * /usr/bin/rclone copy $BACKUP_DIR ${remote}:${backup_path} --include=\"*${website}*\" --log-file=$RCLONE_LOG"$'\n'
+        new_crons="${new_crons}00 02 * * * /usr/bin/rclone copy $BACKUP_DIR ${remote}:${backup_path} --include=\"*${website}*\" --log-file=$RCLONE_LOG"$'\n'
     done
 else
-    new_crons="${new_crons}00 04 * * * /usr/bin/rclone copy $BACKUP_DIR ${remote}: --log-file=$RCLONE_LOG"$'\n'
+    new_crons="${new_crons}00 02 * * * /usr/bin/rclone copy $BACKUP_DIR ${remote}: --log-file=$RCLONE_LOG"$'\n'
 fi
 
-new_crons="${new_crons}05 04 * * * find $BACKUP_DIR -type f -exec rm -f {} \\;"
+new_crons="${new_crons}00 03 * * * find $BACKUP_DIR -type f -exec rm -f {} \\;"
 
 echo "$new_crons" | crontab - && echo "Cron jobs configured" || echo "Failed to configure cron"

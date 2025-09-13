@@ -71,9 +71,27 @@ show_menu() {
     echo -e "${CYAN}============================================================================="
     echo "                         PHP Configuration Manager"
     echo -e "=============================================================================${NC}"
-    echo "1. Adjust PHP Settings     - Optimize PHP configuration for web apps"
-    echo "2. View PHP Information    - Display PHP version and configuration"
+    echo "1. Adjust PHP Settings     ./php/run.sh adjust      # Optimize PHP configuration for web apps"
+    echo "2. View PHP Information    ./php/run.sh info        # Display PHP version and configuration"
     echo "0. Back to Main Menu"
+    echo -e "${CYAN}=============================================================================${NC}"
+}
+
+# Show CLI help
+show_cli_help() {
+    echo -e "${CYAN}============================================================================="
+    echo "                    PHP Configuration CLI Commands"
+    echo -e "=============================================================================${NC}"
+    echo -e "${YELLOW}Usage:${NC} ./php/run.sh <command>"
+    echo ""
+    echo -e "${GREEN}Available Commands:${NC}"
+    echo "  adjust    - Adjust PHP settings"
+    echo "  info      - View PHP information"
+    echo "  --help    - Show this help"
+    echo ""
+    echo -e "${CYAN}Examples:${NC}"
+    echo "  ./php/run.sh adjust"
+    echo "  ./php/run.sh info"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
@@ -84,11 +102,13 @@ handle_cli_command() {
     case $command in
         "adjust"|"settings") execute_script "$SCRIPT_DIR/adjust_settings.sh" "Adjust PHP Settings" ;;
         "info"|"phpinfo") execute_script "$SCRIPT_DIR/view_info.sh" "View PHP Information" ;;
+        "--help"|"-h"|"help") 
+            show_cli_help
+            exit 0
+            ;;
         *) 
             echo -e "${RED}Invalid command: $command${NC}"
-            echo -e "${YELLOW}Available commands:${NC}"
-            echo "  adjust    - Adjust PHP settings"
-            echo "  info      - View PHP information"
+            show_cli_help
             exit 1
             ;;
     esac
