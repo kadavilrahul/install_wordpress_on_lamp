@@ -11,84 +11,170 @@ NC='\033[0m'
 # Configuration
 WWW_PATH="/var/www"
 BACKUP_DIR="/website_backups"
-DB_NAME="your_db"
-DB_USER="your_user"
-DB_PASS="your_password"
-BACKUP_RETENTION_DAYS=30
+TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+BACKUP_RETENTION_DAYS=7
+
+# Variables to be populated from config
+DB_NAME=""
+DB_USER=""
+DB_PASS=""
+DB_HOST=""
+DB_PORT=""
+SELECTED_DOMAIN=""
 
 # SSH Configuration
 SSH_TIMEOUT=30
 SSH_CONNECT_TIMEOUT=10
 
-# Utility functions
-log() { echo "[$1] $2"; }
-error() { log "ERROR" "$1"; echo -e "${RED}Error: $1${NC}" >&2; exit 1; }
-success() { log "SUCCESS" "$1"; echo -e "${GREEN}✓ $1${NC}"; }
-info() { log "INFO" "$1"; echo -e "${BLUE}ℹ $1${NC}"; }
-warn() { log "WARNING" "$1"; echo -e "${YELLOW}⚠ $1${NC}"; }
-confirm() { read -p "$(echo -e "${CYAN}$1 [Y/n]: ${NC}")" -n 1 -r; echo; [[ -z "$REPLY" || $REPLY =~ ^[Yy]$ ]]; }
 
-# Function to log messages with timestamp
-log_message() {
-    local message="[$(date '+%Y-%m-%d %H:%M:%S')] ${1}"
-    echo "${message}"
-    if [[ -n "${LOG_FILE}" ]]; then
-        echo "${message}" >> "${LOG_FILE}"
+
+# Function to discover available domains
+discover_domains() {
+    local domains=()
+    if [[ -d "$WWW_PATH" ]]; then
+        for domain_dir in "$WWW_PATH"/*; do
+            if [[ -d "$domain_dir" && -f "$domain_dir/config.json" ]]; then
+                local domain_name=$(basename "$domain_dir")
+                # Check if config.json has database section
+                if jq -e '.database' "$domain_dir/config.json" >/dev/null 2>&1; then
+                    domains+=("$domain_name")
+                fi
+            fi
+        done
     fi
+    echo "${domains[@]}"
 }
 
-# Function to handle errors
-error_exit() {
-    log_message "ERROR: ${1}"
-    exit 1
+# Function to display domain selection menu
+select_domain() {
+    local domains=($(discover_domains))
+    
+    if [[ ${#domains[@]} -eq 0 ]]; then
+        echo "Error: No domains with valid config.json files found in $WWW_PATH"
+        exit 1
+    fi
+    
+    echo -e "${CYAN}Available domains:${NC}"
+    for i in "${!domains[@]}"; do
+        echo -e "${YELLOW}$((i+1)).${NC} ${domains[i]}"
+    done
+    echo
+    
+    while true; do
+        read -p "$(echo -e "${CYAN}Select domain (1-${#domains[@]}): ${NC}")" choice
+        if [[ "$choice" =~ ^[1-9][0-9]*$ ]] && [[ "$choice" -le "${#domains[@]}" ]]; then
+            SELECTED_DOMAIN="${domains[$((choice-1))]}"
+            break
+        else
+            echo -e "${RED}Invalid selection. Please choose 1-${#domains[@]}.${NC}"
+        fi
+    done
+    
+    echo "Selected domain: $SELECTED_DOMAIN"
+}
+
+# Function to load database configuration from domain's config.json
+load_database_config() {
+    local config_file="$WWW_PATH/$SELECTED_DOMAIN/config.json"
+    
+    if [[ ! -f "$config_file" ]]; then
+        echo "Error: Config file not found: $config_file"
+        exit 1
+    fi
+    
+    # Validate JSON and extract database configuration
+    if ! jq empty "$config_file" 2>/dev/null; then
+        echo "Error: Invalid JSON in config file: $config_file"
+        exit 1
+    fi
+    
+    DB_NAME=$(jq -r '.database.name // empty' "$config_file")
+    DB_USER=$(jq -r '.database.user // empty' "$config_file")
+    DB_PASS=$(jq -r '.database.password // empty' "$config_file")
+    DB_HOST=$(jq -r '.database.host // "localhost"' "$config_file")
+    DB_PORT=$(jq -r '.database.port // "5432"' "$config_file")
+    
+    # Validate required fields
+    if [[ -z "$DB_NAME" || -z "$DB_USER" || -z "$DB_PASS" ]]; then
+        echo "Error: Missing required database configuration in $config_file (name, user, password)"
+        exit 1
+    fi
+    
+    echo "Loaded database config for $SELECTED_DOMAIN"
+    echo "Database: $DB_NAME"
+    echo "User: $DB_USER"
+    echo "Host: $DB_HOST:$DB_PORT"
 }
 
 # PostgreSQL backup function
 backup_postgres() {
-    local TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
-    local LOG_FILE="/var/log/postgres_backup_${TIMESTAMP}.log"
+    local site_path="$WWW_PATH/$SELECTED_DOMAIN"
+    local sql_file="${site_path}/${SELECTED_DOMAIN}_db.sql"
     
-    log_message "Starting PostgreSQL backup process"
+    echo "Starting PostgreSQL backup for $SELECTED_DOMAIN..."
     
     # Start PostgreSQL if not running
-    log_message "Checking PostgreSQL status..."
-    systemctl is-active --quiet postgresql || sudo systemctl start postgresql || error_exit "Failed to start PostgreSQL"
+    if ! systemctl is-active --quiet postgresql; then
+        echo "Starting PostgreSQL service..."
+        sudo systemctl start postgresql || { echo "Failed to start PostgreSQL"; exit 1; }
+    fi
     
-    # Ensure backup directory exists and set permissions
-    log_message "Setting up backup directory..."
-    sudo mkdir -p "$BACKUP_DIR" || error_exit "Failed to create backup directory"
-    sudo chown postgres:postgres "$BACKUP_DIR"
-    sudo chmod 700 "$BACKUP_DIR"
+    # Create database and user if they don't exist (only if they don't exist)
+    if ! sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
+        echo "Database $DB_NAME does not exist, creating..."
+        sudo -u postgres createdb "$DB_NAME" || echo "Warning: Could not create database"
+    fi
     
-    # Create database and user if they don't exist
-    log_message "Ensuring database and user exist..."
-    sudo -u postgres psql <<EOF
-DO \$\$
-BEGIN
-    IF NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DB_NAME') THEN
-        CREATE DATABASE $DB_NAME;
-    END IF;
-
-    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '$DB_USER') THEN
-        CREATE ROLE $DB_USER WITH LOGIN CREATEDB CREATEROLE PASSWORD '$DB_PASS';
-    END IF;
-END
-\$\$;
-GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
-EOF
+    if ! sudo -u postgres psql -t -c "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -q 1; then
+        echo "User $DB_USER does not exist, creating..."
+        sudo -u postgres psql -c "CREATE ROLE $DB_USER WITH LOGIN PASSWORD '$DB_PASS';" || echo "Warning: Could not create user"
+        sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;" || echo "Warning: Could not grant privileges"
+    fi
     
-    # Perform backup
-    local dump_backup="${BACKUP_DIR}/${DB_NAME}_${TIMESTAMP}.dump"
-    log_message "Creating PostgreSQL backup..."
-    sudo -u postgres pg_dump -Fc "$DB_NAME" -f "$dump_backup" || error_exit "PostgreSQL backup failed"
+    # Perform backup - create SQL file in domain folder
+    echo "Creating PostgreSQL backup..."
     
-    # Clean old backups
-    log_message "Cleaning old backups..."
-    find "$BACKUP_DIR" -type f -name "*.dump" -mtime +"$BACKUP_RETENTION_DAYS" -delete
+    export PGHOST="$DB_HOST"
+    export PGPORT="$DB_PORT" 
+    export PGUSER="$DB_USER"
+    export PGPASSWORD="$DB_PASS"
     
-    success "PostgreSQL backup completed successfully!"
-    info "Backup location: $dump_backup"
+    pg_dump --no-owner --no-privileges --clean --if-exists "$DB_NAME" > "$sql_file" 2>/dev/null || {
+        echo "PostgreSQL backup failed"
+        unset PGPASSWORD
+        exit 1
+    }
+    
+    unset PGPASSWORD
+    
+    echo "PostgreSQL backup created: $sql_file"
 }
 
-# Execute the backup function
-backup_postgres
+# Main execution flow
+main() {
+    # Check if www path exists
+    [ ! -d "$WWW_PATH" ] && { echo "Error: $WWW_PATH not found"; exit 1; }
+    
+    echo "PostgreSQL Backup Tool"
+    echo
+    
+    # Select domain
+    select_domain
+    
+    # Load database configuration
+    load_database_config
+    
+    # Confirm before proceeding
+    echo
+    read -p "Backup $SELECTED_DOMAIN? [Y/n]: " -n 1 -r
+    echo
+    if [[ ! -z "$REPLY" && ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Backup cancelled"
+        exit 0
+    fi
+    
+    # Execute backup
+    backup_postgres
+}
+
+main "$@"

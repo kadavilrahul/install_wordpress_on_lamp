@@ -112,7 +112,6 @@ show_menu() {
     echo "8. Redis Cache                  - Caching configuration"
     echo "9. Troubleshooting              - Diagnostic and repair tools"
     echo ""
-    echo "10. Classic Menu                - Show all individual operations"
     echo "0. Exit"
     echo -e "${CYAN}=============================================================================${NC}"
 }
@@ -366,7 +365,7 @@ main() {
     
     while true; do
         show_menu
-        echo -n "Enter option (0-10): "
+        echo -n "Enter option (0-9): "
         read choice
         
         case $choice in
@@ -379,13 +378,12 @@ main() {
             7) execute_folder_script "rclone" "Cloud Storage" ;;
             8) execute_folder_script "redis" "Redis Cache" ;;
             9) execute_folder_script "troubleshooting" "Troubleshooting" ;;
-            10) handle_classic_menu ;;
             0) 
                 echo -e "${GREEN}Thank you for using WordPress Master!${NC}"
                 exit 0 
                 ;;
             *) 
-                echo -e "${RED}Invalid option. Please select 0-10.${NC}"
+                echo -e "${RED}Invalid option. Please select 0-9.${NC}"
                 sleep 1
                 ;;
         esac

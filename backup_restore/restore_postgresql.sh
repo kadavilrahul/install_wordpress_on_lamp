@@ -10,93 +10,124 @@ NC='\033[0m'
 
 # Configuration
 WWW_PATH="/var/www"
-BACKUP_DIR="/website_backups"
-DB_NAME="your_db"
-DB_USER="your_user"
-DB_PASS="your_password"
-BACKUP_RETENTION_DAYS=30
+TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 
-# SSH Configuration
-SSH_TIMEOUT=30
-SSH_CONNECT_TIMEOUT=10
+# Variables to be populated from config
+DB_NAME=""
+DB_USER=""
+DB_PASS=""
+DB_HOST=""
+DB_PORT=""
+SELECTED_DOMAIN=""
 
-# Utility functions
-log() { echo "[$1] $2"; }
-error() { log "ERROR" "$1"; echo -e "${RED}Error: $1${NC}" >&2; exit 1; }
-success() { log "SUCCESS" "$1"; echo -e "${GREEN}✓ $1${NC}"; }
-info() { log "INFO" "$1"; echo -e "${BLUE}ℹ $1${NC}"; }
-warn() { log "WARNING" "$1"; echo -e "${YELLOW}⚠ $1${NC}"; }
-confirm() { read -p "$(echo -e "${CYAN}$1 [Y/n]: ${NC}")" -n 1 -r; echo; [[ -z "$REPLY" || $REPLY =~ ^[Yy]$ ]]; }
-
-# Function to log messages with timestamp
-log_message() {
-    local message="[$(date '+%Y-%m-%d %H:%M:%S')] ${1}"
-    echo "${message}"
-    if [[ -n "${LOG_FILE}" ]]; then
-        echo "${message}" >> "${LOG_FILE}"
+# Function to discover available domains
+discover_domains() {
+    local domains=()
+    if [[ -d "$WWW_PATH" ]]; then
+        for domain_dir in "$WWW_PATH"/*; do
+            if [[ -d "$domain_dir" && -f "$domain_dir/config.json" ]]; then
+                local domain_name=$(basename "$domain_dir")
+                # Check if config.json has database section and SQL dump exists
+                if jq -e '.database' "$domain_dir/config.json" >/dev/null 2>&1 && [[ -f "$domain_dir/${domain_name}_db.sql" ]]; then
+                    domains+=("$domain_name")
+                fi
+            fi
+        done
     fi
+    echo "${domains[@]}"
 }
 
-# Function to handle errors
-error_exit() {
-    log_message "ERROR: ${1}"
-    exit 1
+# Function to display domain selection menu
+select_domain() {
+    local domains=($(discover_domains))
+    
+    if [[ ${#domains[@]} -eq 0 ]]; then
+        echo "Error: No domains with SQL backup files found"
+        exit 1
+    fi
+    
+    echo -e "${CYAN}Available domains with database backups:${NC}"
+    for i in "${!domains[@]}"; do
+        local domain="${domains[i]}"
+        local sql_file="$WWW_PATH/$domain/${domain}_db.sql"
+        local file_size=$(du -h "$sql_file" 2>/dev/null | cut -f1)
+        local file_date=$(stat -c %y "$sql_file" 2>/dev/null | cut -d' ' -f1,2 | cut -d'.' -f1)
+        echo -e "${YELLOW}$((i+1)).${NC} ${domain} (${file_size:-?}, ${file_date:-unknown date})"
+    done
+    echo
+    
+    while true; do
+        read -p "$(echo -e "${CYAN}Select domain (1-${#domains[@]}): ${NC}")" choice
+        if [[ "$choice" =~ ^[1-9][0-9]*$ ]] && [[ "$choice" -le "${#domains[@]}" ]]; then
+            SELECTED_DOMAIN="${domains[$((choice-1))]}"
+            break
+        else
+            echo -e "${RED}Invalid selection. Please choose 1-${#domains[@]}.${NC}"
+        fi
+    done
+    
+    echo "Selected domain: $SELECTED_DOMAIN"
+}
+
+# Function to load database configuration from domain's config.json
+load_database_config() {
+    local config_file="$WWW_PATH/$SELECTED_DOMAIN/config.json"
+    
+    if [[ ! -f "$config_file" ]]; then
+        echo "Error: Config file not found: $config_file"
+        exit 1
+    fi
+    
+    # Validate JSON and extract database configuration
+    if ! jq empty "$config_file" 2>/dev/null; then
+        echo "Error: Invalid JSON in config file: $config_file"
+        exit 1
+    fi
+    
+    DB_NAME=$(jq -r '.database.name // empty' "$config_file")
+    DB_USER=$(jq -r '.database.user // empty' "$config_file")
+    DB_PASS=$(jq -r '.database.password // empty' "$config_file")
+    DB_HOST=$(jq -r '.database.host // "localhost"' "$config_file")
+    DB_PORT=$(jq -r '.database.port // "5432"' "$config_file")
+    
+    # Validate required fields
+    if [[ -z "$DB_NAME" || -z "$DB_USER" || -z "$DB_PASS" ]]; then
+        echo "Error: Missing required database configuration in $config_file (name, user, password)"
+        exit 1
+    fi
+    
+    echo "Loaded database config for $SELECTED_DOMAIN"
+    echo "Database: $DB_NAME"
+    echo "User: $DB_USER" 
+    echo "Host: $DB_HOST:$DB_PORT"
 }
 
 # PostgreSQL restore function
 restore_postgresql() {
-    local TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-    local LOG_FILE="/var/log/postgres_restore_${TIMESTAMP}.log"
+    local site_path="$WWW_PATH/$SELECTED_DOMAIN"
+    local sql_file="${site_path}/${SELECTED_DOMAIN}_db.sql"
     
-    log_message "Starting PostgreSQL restoration process"
-    
-    # List available dump files
-    echo "Available PostgreSQL dump files:"
-    echo "--------------------------------"
-    
-    readarray -t dump_files < <(find "${BACKUP_DIR}" -maxdepth 1 -name "*.dump" -type f | sort)
-    
-    if [ ${#dump_files[@]} -eq 0 ]; then
-        error_exit "No PostgreSQL dump files found"
+    if [[ ! -f "$sql_file" ]]; then
+        echo "Error: SQL backup file not found: $sql_file"
+        exit 1
     fi
     
-    for i in "${!dump_files[@]}"; do
-        filename=$(basename "${dump_files[$i]}")
-        echo "[$((i+1))] ${filename}"
-    done
+    echo "Starting PostgreSQL restore for $SELECTED_DOMAIN..."
+    echo "SQL file: $sql_file"
     
-    echo
-    read -p "Enter the number of the dump file to restore: " dump_number
-    
-    if ! [[ "$dump_number" =~ ^[0-9]+$ ]] || \
-       [ "$dump_number" -lt 1 ] || \
-       [ "$dump_number" -gt ${#dump_files[@]} ]; then
-        error_exit "Invalid dump number selected"
+    # Start PostgreSQL if not running
+    if ! systemctl is-active --quiet postgresql; then
+        echo "Starting PostgreSQL service..."
+        sudo systemctl start postgresql || { echo "Failed to start PostgreSQL"; exit 1; }
     fi
-    
-    selected_dump="${dump_files[$((dump_number-1))]}"
-    log_message "Selected dump: $(basename "${selected_dump}")"
-    
-    # Update system packages
-    log_message "Updating system packages..."
-    sudo apt update -y
-    
-    # Install PostgreSQL (if not installed)
-    log_message "Installing PostgreSQL..."
-    sudo apt install -y postgresql postgresql-contrib
-    
-    # Start and enable PostgreSQL service
-    log_message "Starting PostgreSQL service..."
-    sudo systemctl start postgresql
-    sudo systemctl enable postgresql
     
     # Setup database and user
-    log_message "Setting up database and user..."
+    echo "Setting up database and user..."
     sudo -u postgres psql <<EOF
 -- Drop database if it exists
 DROP DATABASE IF EXISTS $DB_NAME;
 
--- Drop user if it exists and recreate
+-- Drop user if it exists and recreate  
 DROP ROLE IF EXISTS $DB_USER;
 CREATE ROLE $DB_USER WITH LOGIN CREATEDB CREATEROLE PASSWORD '$DB_PASS';
 
@@ -107,16 +138,50 @@ CREATE DATABASE $DB_NAME OWNER $DB_USER;
 GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
 EOF
     
-    # Restore the dump file
-    log_message "Restoring the database from dump..."
-    sudo -u postgres pg_restore --clean --if-exists -d $DB_NAME "$selected_dump" || error_exit "Database restoration failed"
+    # Restore from SQL file
+    echo "Restoring database from SQL file..."
     
-    # Verify database and table existence
-    log_message "Verifying database..."
-    sudo -u postgres psql -d $DB_NAME -c "\dt"
+    export PGHOST="$DB_HOST"
+    export PGPORT="$DB_PORT"
+    export PGUSER="$DB_USER"
+    export PGPASSWORD="$DB_PASS"
     
-    success "PostgreSQL restoration completed successfully!"
+    psql -d "$DB_NAME" < "$sql_file" || {
+        echo "Database restoration failed"
+        unset PGPASSWORD
+        exit 1
+    }
+    
+    unset PGPASSWORD
+    
+    echo "PostgreSQL restoration completed successfully!"
 }
 
-# Execute the restore function
-restore_postgresql
+# Main execution flow
+main() {
+    # Check if www path exists
+    [ ! -d "$WWW_PATH" ] && { echo "Error: $WWW_PATH not found"; exit 1; }
+    
+    echo "PostgreSQL Restore Tool"
+    echo
+    
+    # Select domain
+    select_domain
+    
+    # Load database configuration
+    load_database_config
+    
+    # Confirm before proceeding
+    echo
+    read -p "Restore $SELECTED_DOMAIN database? [Y/n]: " -n 1 -r
+    echo
+    if [[ ! -z "$REPLY" && ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Restore cancelled"
+        exit 0
+    fi
+    
+    # Execute restore
+    restore_postgresql
+}
+
+main "$@"
