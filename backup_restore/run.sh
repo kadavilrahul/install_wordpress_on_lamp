@@ -73,7 +73,7 @@ show_menu() {
     echo -e "=============================================================================${NC}"
     echo "1. Backup WordPress Sites       ./backup_restore/run.sh backup     # Create backups of WordPress sites and databases"
     echo "2. Restore WordPress Sites      ./backup_restore/run.sh restore    # Restore WordPress sites from backups"
-    echo "3. Transfer Backups to Cloud    ./backup_restore/run.sh transfer   # Upload backups to cloud storage with rclone"
+    echo "3. Transfer Backups to Server   ./backup_restore/run.sh transfer   # Transfer backups to another server via SSH/SCP"
     echo "4. Backup PostgreSQL            ./backup_restore/run.sh pgbackup   # Create PostgreSQL database backups"
     echo "5. Restore PostgreSQL           ./backup_restore/run.sh pgrestore  # Restore PostgreSQL database from backup"
     echo "6. Advanced Backup Menu         ./backup_restore/run.sh menu       # Access advanced backup/restore options"
@@ -91,7 +91,7 @@ show_cli_help() {
     echo -e "${GREEN}Available Commands:${NC}"
     echo "  backup     - Backup WordPress sites"
     echo "  restore    - Restore WordPress sites"
-    echo "  transfer   - Transfer backups to cloud"
+    echo "  transfer   - Transfer backups to server"
     echo "  pgbackup   - Backup PostgreSQL"
     echo "  pgrestore  - Restore PostgreSQL"
     echo "  menu       - Advanced backup menu"
@@ -111,7 +111,7 @@ handle_cli_command() {
     case $command in
         "backup") execute_script "$SCRIPT_DIR/backup_wordpress.sh" "WordPress Backup" ;;
         "restore") execute_script "$SCRIPT_DIR/restore_wordpress.sh" "WordPress Restore" ;;
-        "transfer") execute_script "$SCRIPT_DIR/transfer_backups.sh" "Transfer Backups to Cloud" ;;
+        "transfer") execute_script "$SCRIPT_DIR/transfer_backups.sh" "Transfer Backups to Server" ;;
         "pgbackup") execute_script "$SCRIPT_DIR/backup_postgresql.sh" "PostgreSQL Backup" ;;
         "pgrestore") execute_script "$SCRIPT_DIR/restore_postgresql.sh" "PostgreSQL Restore" ;;
         "menu") execute_script "$SCRIPT_DIR/backup_restore_menu.sh" "Advanced Backup Menu" ;;
@@ -144,7 +144,7 @@ main() {
         case $choice in
             1) execute_script "$SCRIPT_DIR/backup_wordpress.sh" "WordPress Backup" ;;
             2) execute_script "$SCRIPT_DIR/restore_wordpress.sh" "WordPress Restore" ;;
-            3) execute_script "$SCRIPT_DIR/transfer_backups.sh" "Transfer Backups to Cloud" ;;
+            3) execute_script "$SCRIPT_DIR/transfer_backups.sh" "Transfer Backups to Server" ;;
             4) execute_script "$SCRIPT_DIR/backup_postgresql.sh" "PostgreSQL Backup" ;;
             5) execute_script "$SCRIPT_DIR/restore_postgresql.sh" "PostgreSQL Restore" ;;
             6) execute_script "$SCRIPT_DIR/backup_restore_menu.sh" "Advanced Backup Menu" ;;
