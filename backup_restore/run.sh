@@ -76,7 +76,6 @@ show_menu() {
     echo "3. Transfer Backups to Server   ./backup_restore/run.sh transfer   # Transfer backups to another server via SSH/SCP"
     echo "4. Backup PostgreSQL            ./backup_restore/run.sh pgbackup   # Create PostgreSQL database backups"
     echo "5. Restore PostgreSQL           ./backup_restore/run.sh pgrestore  # Restore PostgreSQL database from backup"
-    echo "6. Advanced Backup Menu         ./backup_restore/run.sh menu       # Access advanced backup/restore options"
     echo "0. Back to Main Menu"
     echo -e "${CYAN}=============================================================================${NC}"
 }
@@ -94,7 +93,6 @@ show_cli_help() {
     echo "  transfer   - Transfer backups to server"
     echo "  pgbackup   - Backup PostgreSQL"
     echo "  pgrestore  - Restore PostgreSQL"
-    echo "  menu       - Advanced backup menu"
     echo "  --help     - Show this help"
     echo ""
     echo -e "${CYAN}Examples:${NC}"
@@ -114,7 +112,6 @@ handle_cli_command() {
         "transfer") execute_script "$SCRIPT_DIR/transfer_backups.sh" "Transfer Backups to Server" ;;
         "pgbackup") execute_script "$SCRIPT_DIR/backup_postgresql.sh" "PostgreSQL Backup" ;;
         "pgrestore") execute_script "$SCRIPT_DIR/restore_postgresql.sh" "PostgreSQL Restore" ;;
-        "menu") execute_script "$SCRIPT_DIR/backup_restore_menu.sh" "Advanced Backup Menu" ;;
         "--help"|"-h"|"help") 
             show_cli_help
             exit 0
@@ -138,7 +135,7 @@ main() {
     
     while true; do
         show_menu
-        echo -n "Enter option (0-6): "
+        echo -n "Enter option (0-5): "
         read choice
         
         case $choice in
@@ -147,13 +144,12 @@ main() {
             3) execute_script "$SCRIPT_DIR/transfer_backups.sh" "Transfer Backups to Server" ;;
             4) execute_script "$SCRIPT_DIR/backup_postgresql.sh" "PostgreSQL Backup" ;;
             5) execute_script "$SCRIPT_DIR/restore_postgresql.sh" "PostgreSQL Restore" ;;
-            6) execute_script "$SCRIPT_DIR/backup_restore_menu.sh" "Advanced Backup Menu" ;;
             0) 
                 echo -e "${GREEN}Returning to main menu...${NC}"
                 exit 0 
                 ;;
             *) 
-                echo -e "${RED}Invalid option. Please select 0-6.${NC}"
+                echo -e "${RED}Invalid option. Please select 0-5.${NC}"
                 sleep 1
                 ;;
         esac
