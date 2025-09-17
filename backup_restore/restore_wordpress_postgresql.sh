@@ -44,7 +44,7 @@ main() {
             echo "====================================================================="
             
             if [ $wordpress_exit_code -eq 0 ]; then
-                echo "✓ WordPress restore: Completed successfully"
+                echo "✓ WordPress restore: Completed successfully (MySQL database)"
             else
                 echo "✗ WordPress restore: Failed (exit code: $wordpress_exit_code)"
             fi
@@ -60,6 +60,8 @@ main() {
             # Overall exit code
             if [ $wordpress_exit_code -eq 0 ] && [ $postgresql_exit_code -eq 0 ]; then
                 echo "✓ Combined restore completed successfully!"
+                echo "  Restored from {domain}_mysql_db.sql (WordPress/MySQL)"
+                echo "  Restored from {domain}_postgres_db.sql (PostgreSQL)"
                 exit 0
             else
                 echo "✗ Combined restore completed with errors"

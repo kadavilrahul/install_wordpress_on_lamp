@@ -112,9 +112,9 @@ restore_wordpress_site() {
     rm -f "${target_dir}/wp-content/object-cache.php"
     rm -f "${target_dir}/wp-content/advanced-cache.php"
     
-    # Find database dump in the extracted files
+    # Find database dump in the extracted files (MySQL dump)
     local db_dump=""
-    for possible_dump in "${target_dir}"/*_db.sql "${target_dir}"/wordpress_db.sql "${target_dir}"/*.sql; do
+    for possible_dump in "${target_dir}"/*_mysql_db.sql "${target_dir}"/*_db.sql "${target_dir}"/wordpress_db.sql "${target_dir}"/*.sql; do
         if [ -f "${possible_dump}" ]; then
             db_dump="${possible_dump}"
             break

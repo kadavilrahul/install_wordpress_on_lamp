@@ -54,7 +54,7 @@ main() {
             fi
             
             if [ $wordpress_exit_code -eq 0 ]; then
-                echo "✓ WordPress backup: Completed successfully (includes PostgreSQL dump)"
+                echo "✓ WordPress backup: Completed successfully"
             else
                 echo "✗ WordPress backup: Failed (exit code: $wordpress_exit_code)"
             fi
@@ -64,7 +64,9 @@ main() {
             # Overall exit code
             if [ $postgresql_exit_code -eq 0 ] && [ $wordpress_exit_code -eq 0 ]; then
                 echo "✓ Combined backup completed successfully!"
-                echo "  PostgreSQL database dump is included in WordPress backup archive"
+                echo "  PostgreSQL dump: {domain}_postgres_db.sql"
+                echo "  MySQL dump: {domain}_mysql_db.sql (if applicable)"
+                echo "  Both dumps are included in WordPress backup archive"
                 exit 0
             else
                 echo "✗ Combined backup completed with errors"

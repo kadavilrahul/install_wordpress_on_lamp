@@ -28,7 +28,7 @@ discover_domains() {
             if [[ -d "$domain_dir" && -f "$domain_dir/config.json" ]]; then
                 local domain_name=$(basename "$domain_dir")
                 # Check if config.json has database section and SQL dump exists
-                if jq -e '.database' "$domain_dir/config.json" >/dev/null 2>&1 && [[ -f "$domain_dir/${domain_name}_db.sql" ]]; then
+                if jq -e '.database' "$domain_dir/config.json" >/dev/null 2>&1 && [[ -f "$domain_dir/${domain_name}_postgres_db.sql" ]]; then
                     domains+=("$domain_name")
                 fi
             fi
@@ -49,7 +49,7 @@ select_domain() {
     echo -e "${CYAN}Available domains with database backups:${NC}"
     for i in "${!domains[@]}"; do
         local domain="${domains[i]}"
-        local sql_file="$WWW_PATH/$domain/${domain}_db.sql"
+        local sql_file="$WWW_PATH/$domain/${domain}_postgres_db.sql"
         local file_size=$(du -h "$sql_file" 2>/dev/null | cut -f1)
         local file_date=$(stat -c %y "$sql_file" 2>/dev/null | cut -d' ' -f1,2 | cut -d'.' -f1)
         echo -e "${YELLOW}$((i+1)).${NC} ${domain} (${file_size:-?}, ${file_date:-unknown date})"
@@ -105,7 +105,7 @@ load_database_config() {
 # PostgreSQL restore function
 restore_postgresql() {
     local site_path="$WWW_PATH/$SELECTED_DOMAIN"
-    local sql_file="${site_path}/${SELECTED_DOMAIN}_db.sql"
+    local sql_file="${site_path}/${SELECTED_DOMAIN}_postgres_db.sql"
     
     if [[ ! -f "$sql_file" ]]; then
         echo "Error: SQL backup file not found: $sql_file"

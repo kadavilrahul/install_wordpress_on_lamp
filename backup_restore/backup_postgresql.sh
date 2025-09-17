@@ -109,7 +109,7 @@ load_database_config() {
 # PostgreSQL backup function
 backup_postgres() {
     local site_path="$WWW_PATH/$SELECTED_DOMAIN"
-    local sql_file="${site_path}/${SELECTED_DOMAIN}_db.sql"
+    local sql_file="${site_path}/${SELECTED_DOMAIN}_postgres_db.sql"
     
     echo "Starting PostgreSQL backup for $SELECTED_DOMAIN..."
     

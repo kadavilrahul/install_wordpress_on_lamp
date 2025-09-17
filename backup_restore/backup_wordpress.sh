@@ -31,11 +31,11 @@ backup_site() {
     local backup_name="${site_name}_backup_${TIMESTAMP}.tar.gz"
     
     if command -v wp >/dev/null && wp core is-installed --path="$site_path" --allow-root 2>/dev/null; then
-        wp db export "$site_path/${site_name}_db.sql" --path="$site_path" --allow-root 2>/dev/null
+        wp db export "$site_path/${site_name}_mysql_db.sql" --path="$site_path" --allow-root 2>/dev/null
     fi
     
     cd "$WWW_PATH" && tar -czf "$BACKUP_DIR/$backup_name" "$site_name" 2>/dev/null
-    rm -f "$site_path/${site_name}_db.sql" 2>/dev/null
+    rm -f "$site_path/${site_name}_mysql_db.sql" 2>/dev/null
     echo "Backup created: $backup_name"
 }
 
