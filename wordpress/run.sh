@@ -72,8 +72,9 @@ show_menu() {
     echo "                         WordPress Management Tools"
     echo -e "=============================================================================${NC}"
     echo "1. Install LAMP Stack + WordPress    ./wordpress/run.sh install   # Complete LAMP installation with WordPress setup"
-    echo "2. Remove Websites & Databases       ./wordpress/run.sh remove    # Clean removal of websites and data"
-    echo "3. Remove Orphaned Databases         ./wordpress/run.sh cleanup   # Clean up databases without websites"
+    echo "2. Install PostgreSQL + Extensions   ./wordpress/run.sh postgres  # Install PostgreSQL with extensions"
+    echo "3. Remove Websites & Databases       ./wordpress/run.sh remove    # Clean removal of websites and data"
+    echo "4. Remove Orphaned Databases         ./wordpress/run.sh cleanup   # Clean up databases without websites"
     echo "0. Back to Main Menu"
     echo -e "${CYAN}=============================================================================${NC}"
 }
@@ -89,12 +90,14 @@ show_cli_help() {
     echo "  install   - Install LAMP Stack + WordPress"
     echo "  remove    - Remove websites & databases"
     echo "  cleanup   - Remove orphaned databases"
+    echo "  postgres  - Install PostgreSQL with extensions"
     echo "  --help    - Show this help"
     echo ""
     echo -e "${CYAN}Examples:${NC}"
     echo "  ./wordpress/run.sh install"
     echo "  ./wordpress/run.sh remove"
     echo "  ./wordpress/run.sh cleanup"
+    echo "  ./wordpress/run.sh postgres"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
@@ -106,6 +109,7 @@ handle_cli_command() {
         "install"|"lamp") execute_script "$SCRIPT_DIR/install_lamp_stack.sh" "LAMP Stack + WordPress Installation" ;;
         "remove") execute_script "$SCRIPT_DIR/remove_websites_databases.sh" "Remove Websites & Databases" ;;
         "cleanup"|"orphan") execute_script "$SCRIPT_DIR/remove_orphaned_databases.sh" "Remove Orphaned Databases" ;;
+        "postgres"|"pg") execute_script "$SCRIPT_DIR/install_postgresql.sh" "PostgreSQL Installation" ;;
         "--help"|"-h"|"help") 
             show_cli_help
             exit 0
@@ -129,19 +133,20 @@ main() {
     
     while true; do
         show_menu
-        echo -n "Enter option (0-3): "
+        echo -n "Enter option (0-4): "
         read choice
         
         case $choice in
             1) execute_script "$SCRIPT_DIR/install_lamp_stack.sh" "LAMP Stack + WordPress Installation" ;;
-            2) execute_script "$SCRIPT_DIR/remove_websites_databases.sh" "Remove Websites & Databases" ;;
-            3) execute_script "$SCRIPT_DIR/remove_orphaned_databases.sh" "Remove Orphaned Databases" ;;
+            2) execute_script "$SCRIPT_DIR/install_postgresql.sh" "PostgreSQL Installation with Extensions" ;;
+            3) execute_script "$SCRIPT_DIR/remove_websites_databases.sh" "Remove Websites & Databases" ;;
+            4) execute_script "$SCRIPT_DIR/remove_orphaned_databases.sh" "Remove Orphaned Databases" ;;
             0) 
                 echo -e "${GREEN}Returning to main menu...${NC}"
                 exit 0 
                 ;;
             *) 
-                echo -e "${RED}Invalid option. Please select 0-3.${NC}"
+                echo -e "${RED}Invalid option. Please select 0-4.${NC}"
                 sleep 1
                 ;;
         esac
