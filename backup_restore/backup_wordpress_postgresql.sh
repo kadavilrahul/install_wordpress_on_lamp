@@ -42,6 +42,21 @@ main() {
             bash "$SCRIPT_DIR/backup_wordpress.sh" "$@"
             wordpress_exit_code=$?
             
+            # Clean up PostgreSQL dump files after WordPress backup includes them in tar
+            echo
+            echo "Step 3: Cleaning up PostgreSQL dump files..."
+            echo "---------------------------------------------------------------------"
+            for domain_dir in /var/www/*; do
+                if [[ -d "$domain_dir" ]]; then
+                    domain_name=$(basename "$domain_dir")
+                    postgres_dump="$domain_dir/${domain_name}_postgres_db.sql"
+                    if [[ -f "$postgres_dump" ]]; then
+                        rm -f "$postgres_dump"
+                        echo "Removed: $postgres_dump"
+                    fi
+                fi
+            done
+            
             echo
             echo "====================================================================="
             echo "          Combined Backup Summary"
