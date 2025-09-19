@@ -2,7 +2,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPT_DIR")"
-BACKUP_SCRIPT="$BASE_DIR/backup_restore/backup_wordpress.sh"
+BACKUP_SCRIPT="$BASE_DIR/backup_restore/backup_wordpress_postgresql.sh"
 BACKUP_DIR="/website_backups"
 RCLONE_LOG="/var/log/rclone.log"
 CONFIG_FILE="$BASE_DIR/config.json"
@@ -43,7 +43,7 @@ case $choice in
         echo
         read -p "Remove all backup cron jobs? (y/N): " confirm
         if [[ "$confirm" =~ ^[yY]$ ]]; then
-            current_crons=$(crontab -l 2>/dev/null | grep -v "$BACKUP_SCRIPT" | grep -v "rclone.*$BACKUP_DIR" | grep -v "find $BACKUP_DIR")
+            current_crons=$(crontab -l 2>/dev/null | grep -v "$BACKUP_SCRIPT" | grep -v "backup_wordpress.sh" | grep -v "rclone.*$BACKUP_DIR" | grep -v "find $BACKUP_DIR")
             echo "$current_crons" | crontab - && echo "All backup cron jobs removed" || echo "Failed to remove cron jobs"
         else
             echo "Operation cancelled"
@@ -53,7 +53,7 @@ case $choice in
     *) echo "Invalid choice"; exit 1 ;;
 esac
 
-current_crons=$(crontab -l 2>/dev/null | grep -v "$BACKUP_SCRIPT" | grep -v "rclone.*$BACKUP_DIR" | grep -v "find $BACKUP_DIR")
+current_crons=$(crontab -l 2>/dev/null | grep -v "$BACKUP_SCRIPT" | grep -v "backup_wordpress.sh" | grep -v "rclone.*$BACKUP_DIR" | grep -v "find $BACKUP_DIR")
 new_crons="$current_crons"
 
 [ -n "$new_crons" ] && new_crons="$new_crons"$'\n'
