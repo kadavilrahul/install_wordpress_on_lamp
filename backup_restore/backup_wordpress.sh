@@ -3,6 +3,7 @@
 WWW_PATH="/var/www"
 BACKUP_DIR="/website_backups"
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+NON_INTERACTIVE=false
 
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
@@ -31,12 +32,16 @@ backup_site() {
     local backup_name="${site_name}_backup_${TIMESTAMP}.tar.gz"
     
     if command -v wp >/dev/null && wp core is-installed --path="$site_path" --allow-root 2>/dev/null; then
-        wp db export "$site_path/${site_name}_mysql_db.sql" --path="$site_path" --allow-root 2>/dev/null
+        if [[ "$NON_INTERACTIVE" == "true" ]]; then
+            wp db export "$site_path/${site_name}_mysql_db.sql" --path="$site_path" --allow-root >/dev/null 2>&1
+        else
+            wp db export "$site_path/${site_name}_mysql_db.sql" --path="$site_path" --allow-root 2>/dev/null
+        fi
     fi
     
     cd "$WWW_PATH" && tar -czf "$BACKUP_DIR/$backup_name" "$site_name" 2>/dev/null
     rm -f "$site_path/${site_name}_mysql_db.sql" 2>/dev/null
-    echo "Backup created: $backup_name"
+    echo "✓ WordPress backup: $backup_name"
 }
 
 find_sites() {
@@ -86,6 +91,7 @@ main() {
     case "${1:-}" in
         --site)
             [ -z "$2" ] && { echo "Error: Site name required"; exit 1; }
+            NON_INTERACTIVE=true
             site_found=false
             for site in "${sites[@]}"; do
                 if [ "$site" = "$2" ]; then
@@ -97,11 +103,13 @@ main() {
             [ "$site_found" = false ] && { echo "Error: Site '$2' not found"; exit 1; }
             ;;
         --all)
+            NON_INTERACTIVE=true
             for site in "${sites[@]}"; do
                 backup_site "$WWW_PATH/$site" "$site"
             done
             ;;
         --first)
+            NON_INTERACTIVE=true
             backup_site "$WWW_PATH/${sites[0]}" "${sites[0]}"
             ;;
         --list)
@@ -126,7 +134,7 @@ main() {
     esac
     
     find "$BACKUP_DIR" -name "*.tar.gz" -mtime +7 -delete 2>/dev/null
-    echo "Backup completed"
+    [[ "$NON_INTERACTIVE" != "true" ]] && echo "Backup completed"
 }
 
 main "$@"

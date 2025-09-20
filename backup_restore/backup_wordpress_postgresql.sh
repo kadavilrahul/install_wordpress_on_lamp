@@ -20,17 +20,109 @@ show_usage() {
 }
 
 main() {
-    echo "====================================================================="
-    echo "          Combined WordPress + PostgreSQL Backup"
-    echo "====================================================================="
-    echo
+    # Check if running in non-interactive mode (with arguments)
+    NON_INTERACTIVE=false
+    if [[ -n "$1" ]] && [[ "$1" != "-h" ]] && [[ "$1" != "--help" ]]; then
+        NON_INTERACTIVE=true
+    fi
+    
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo "====================================================================="
+        echo "          Combined WordPress + PostgreSQL Backup"
+        echo "====================================================================="
+        echo
+    fi
     
     case "${1:-}" in
         -h|--help)
             show_usage
             exit 0
             ;;
-        --site|--all|--first|"")
+        --site|--all|--first)
+            # Pass the same arguments to both scripts
+            [[ "$NON_INTERACTIVE" != "true" ]] && echo "Step 1: Running PostgreSQL Backup..."
+            [[ "$NON_INTERACTIVE" != "true" ]] && echo "---------------------------------------------------------------------"
+            bash "$SCRIPT_DIR/backup_postgresql.sh" "$@" 2>&1 | grep -E "^(✓|✗|Error:)"
+            postgresql_exit_code=${PIPESTATUS[0]}
+            
+            [[ "$NON_INTERACTIVE" != "true" ]] && echo
+            [[ "$NON_INTERACTIVE" != "true" ]] && echo "Step 2: Running WordPress Backup..."
+            [[ "$NON_INTERACTIVE" != "true" ]] && echo "---------------------------------------------------------------------"
+            bash "$SCRIPT_DIR/backup_wordpress.sh" "$@" 2>&1 | grep -E "^(✓|✗|Error:)"
+            wordpress_exit_code=${PIPESTATUS[0]}
+            
+            # Clean up PostgreSQL dump files after WordPress backup includes them in tar
+            [[ "$NON_INTERACTIVE" != "true" ]] && echo
+            [[ "$NON_INTERACTIVE" != "true" ]] && echo "Step 3: Cleaning up PostgreSQL dump files..."
+            [[ "$NON_INTERACTIVE" != "true" ]] && echo "---------------------------------------------------------------------"
+            
+            # Determine which domains to clean based on the argument
+            case "$1" in
+                --site)
+                    if [[ -n "$2" ]] && [[ -d "/var/www/$2" ]]; then
+                        postgres_dump="/var/www/$2/${2}_postgres_db.sql"
+                        if [[ -f "$postgres_dump" ]]; then
+                            rm -f "$postgres_dump"
+                            [[ "$NON_INTERACTIVE" != "true" ]] && echo "Removed: $postgres_dump"
+                        fi
+                    fi
+                    ;;
+                --all|--first)
+                    for domain_dir in /var/www/*; do
+                        if [[ -d "$domain_dir" ]]; then
+                            domain_name=$(basename "$domain_dir")
+                            postgres_dump="$domain_dir/${domain_name}_postgres_db.sql"
+                            if [[ -f "$postgres_dump" ]]; then
+                                rm -f "$postgres_dump"
+                                [[ "$NON_INTERACTIVE" != "true" ]] && echo "Removed: $postgres_dump"
+                            fi
+                        fi
+                    done
+                    ;;
+            esac
+            
+            if [[ "$NON_INTERACTIVE" != "true" ]]; then
+                echo
+                echo "====================================================================="
+                echo "          Combined Backup Summary"
+                echo "====================================================================="
+                
+                if [ $postgresql_exit_code -eq 0 ]; then
+                    echo "✓ PostgreSQL backup: Completed successfully"
+                else
+                    echo "✗ PostgreSQL backup: Failed (exit code: $postgresql_exit_code)"
+                fi
+                
+                if [ $wordpress_exit_code -eq 0 ]; then
+                    echo "✓ WordPress backup: Completed successfully"
+                else
+                    echo "✗ WordPress backup: Failed (exit code: $wordpress_exit_code)"
+                fi
+                
+                echo
+                
+                # Overall exit code
+                if [ $postgresql_exit_code -eq 0 ] && [ $wordpress_exit_code -eq 0 ]; then
+                    echo "✓ Combined backup completed successfully!"
+                    echo "  PostgreSQL dump: {domain}_postgres_db.sql"
+                    echo "  MySQL dump: {domain}_mysql_db.sql (if applicable)"
+                    echo "  Both dumps are included in WordPress backup archive"
+                    exit 0
+                else
+                    echo "✗ Combined backup completed with errors"
+                    exit 1
+                fi
+            else
+                # In non-interactive mode, just exit with proper code
+                if [ $postgresql_exit_code -eq 0 ] && [ $wordpress_exit_code -eq 0 ]; then
+                    exit 0
+                else
+                    exit 1
+                fi
+            fi
+            ;;
+        "")
+            # Interactive mode - show menu
             echo "Step 1: Running PostgreSQL Backup..."
             echo "---------------------------------------------------------------------"
             bash "$SCRIPT_DIR/backup_postgresql.sh"
@@ -39,7 +131,7 @@ main() {
             echo
             echo "Step 2: Running WordPress Backup..."
             echo "---------------------------------------------------------------------"
-            bash "$SCRIPT_DIR/backup_wordpress.sh" "$@"
+            bash "$SCRIPT_DIR/backup_wordpress.sh"
             wordpress_exit_code=$?
             
             # Clean up PostgreSQL dump files after WordPress backup includes them in tar
