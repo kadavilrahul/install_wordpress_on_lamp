@@ -316,6 +316,96 @@ create_database() {
     print_message "$GREEN" "✅ Privileges granted to user '$db_user'"
 }
 
+# Function to install PHP PostgreSQL extensions
+install_php_extensions() {
+    print_message "$BLUE" "🔌 Installing PHP PostgreSQL Extensions..."
+    echo ""
+    
+    # Detect PHP version
+    if command -v php >/dev/null 2>&1; then
+        php_version=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;")
+        print_message "$GREEN" "✅ PHP version detected: $php_version"
+    else
+        print_message "$YELLOW" "⚠️  PHP not detected, will install default extensions"
+        php_version=""
+    fi
+    
+    # Update package list
+    apt-get update >/dev/null 2>&1
+    
+    # Install PHP PostgreSQL extensions based on version
+    if [ ! -z "$php_version" ]; then
+        # Try to install version-specific package
+        package_name="php${php_version}-pgsql"
+        print_message "$BLUE" "Installing $package_name..."
+        
+        if apt-get install -y $package_name >/dev/null 2>&1; then
+            print_message "$GREEN" "✅ $package_name installed successfully"
+        else
+            # Fallback to generic package
+            print_message "$YELLOW" "⚠️  Version-specific package not found, trying generic php-pgsql"
+            apt-get install -y php-pgsql >/dev/null 2>&1
+        fi
+    else
+        # Install generic PHP PostgreSQL package
+        apt-get install -y php-pgsql >/dev/null 2>&1
+    fi
+    
+    # Also install PDO PostgreSQL driver
+    if [ ! -z "$php_version" ]; then
+        pdo_package="php${php_version}-pdo-pgsql"
+        if apt-get install -y $pdo_package >/dev/null 2>&1; then
+            print_message "$GREEN" "✅ PDO PostgreSQL driver installed"
+        fi
+    fi
+    
+    # Install PostgreSQL client tools if not present
+    if ! command -v psql >/dev/null 2>&1; then
+        print_message "$BLUE" "Installing PostgreSQL client tools..."
+        apt-get install -y postgresql-client >/dev/null 2>&1
+        print_message "$GREEN" "✅ PostgreSQL client tools installed"
+    fi
+    
+    # Restart web server if running
+    if systemctl is-active --quiet apache2; then
+        print_message "$BLUE" "Restarting Apache..."
+        systemctl restart apache2
+        print_message "$GREEN" "✅ Apache restarted"
+    elif systemctl is-active --quiet nginx; then
+        print_message "$BLUE" "Restarting Nginx..."
+        systemctl restart nginx
+        systemctl restart php*-fpm >/dev/null 2>&1
+        print_message "$GREEN" "✅ Nginx and PHP-FPM restarted"
+    fi
+    
+    # Verify installation
+    echo ""
+    print_message "$BLUE" "🧪 Verifying PHP PostgreSQL extension installation..."
+    
+    if php -m 2>/dev/null | grep -q pgsql; then
+        print_message "$GREEN" "✅ PHP PostgreSQL extension is installed and loaded"
+        
+        # Show installed modules
+        echo ""
+        print_message "$BLUE" "Installed PostgreSQL PHP modules:"
+        php -m 2>/dev/null | grep -i pg | while read module; do
+            echo "  - $module"
+        done
+    else
+        print_message "$YELLOW" "⚠️  PHP PostgreSQL extension may not be loaded"
+        print_message "$YELLOW" "   You may need to restart your web server manually"
+    fi
+    
+    echo ""
+    print_message "$GREEN" "=========================================="
+    print_message "$GREEN" "🎉 PHP PostgreSQL Extensions Installation Complete!"
+    print_message "$GREEN" "=========================================="
+    echo ""
+    print_message "$BLUE" "Your PHP applications can now connect to PostgreSQL databases."
+    print_message "$BLUE" "Use pg_connect() or PDO to establish connections."
+    echo ""
+}
+
 # Function to install extensions
 install_extensions() {
     print_message "$BLUE" "🔌 Installing PostgreSQL extensions..."
@@ -605,14 +695,15 @@ show_menu() {
     echo "1. Complete Installation (PostgreSQL + Database + Extensions)"
     echo "2. Install PostgreSQL Only"
     echo "3. Create Database and User Only"
-    echo "4. Install Extensions Only"
-    echo "5. Configure Performance Settings"
-    echo "6. Test Database Connection"
-    echo "7. Create Backup Script"
-    echo "8. Uninstall PostgreSQL"
+    echo "4. Install Database Extensions Only"
+    echo "5. Install PHP PostgreSQL Extensions"
+    echo "6. Configure Performance Settings"
+    echo "7. Test Database Connection"
+    echo "8. Create Backup Script"
+    echo "9. Uninstall PostgreSQL"
     echo "0. Exit"
     echo ""
-    read -p "Select option [0-8]: " choice
+    read -p "Select option [0-9]: " choice
     
     case $choice in
         1)
@@ -642,15 +733,19 @@ show_menu() {
             test_connection
             ;;
         4)
-            # Install extensions only
+            # Install database extensions only
             read -p "Enter database name: " db_name
             install_extensions
             ;;
         5)
+            # Install PHP PostgreSQL extensions
+            install_php_extensions
+            ;;
+        6)
             # Configure performance
             configure_postgresql
             ;;
-        6)
+        7)
             # Test connection
             read -p "Enter database name: " db_name
             read -p "Enter database user: " db_user
@@ -658,7 +753,7 @@ show_menu() {
             echo
             test_connection
             ;;
-        7)
+        8)
             # Create backup script
             read -p "Enter database name: " db_name
             read -p "Enter database user: " db_user
@@ -666,7 +761,7 @@ show_menu() {
             echo
             create_backup_script
             ;;
-        8)
+        9)
             # Uninstall
             uninstall_postgresql
             ;;
@@ -691,11 +786,15 @@ main() {
     
     # Check for command line arguments
     if [ $# -eq 0 ]; then
-        # Interactive mode
+        # Interactive mode - show full menu
         show_menu
     else
         # Handle command line arguments
         case "$1" in
+            --install-php-extensions|--php-ext)
+                # Direct installation of PHP extensions without menu
+                install_php_extensions
+                ;;
             --install-all)
                 check_system
                 if check_existing_installation; then
@@ -732,11 +831,12 @@ main() {
                 echo "Usage: $0 [OPTIONS]"
                 echo ""
                 echo "Options:"
+                echo "  --install-php-extensions              Install PHP PostgreSQL extensions"
                 echo "  --install-all [db_name] [db_user] [db_pass]  Complete installation"
-                echo "  --install-only                                Install PostgreSQL only"
+                echo "  --install-only                        Install PostgreSQL only"
                 echo "  --create-db [db_name] [db_user] [db_pass]   Create database only"
-                echo "  --uninstall                                  Uninstall PostgreSQL"
-                echo "  --help                                       Show this help message"
+                echo "  --uninstall                          Uninstall PostgreSQL"
+                echo "  --help                               Show this help message"
                 echo ""
                 echo "Interactive mode: Run without arguments"
                 ;;

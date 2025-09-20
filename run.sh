@@ -16,6 +16,209 @@ confirm() { read -p "$(echo -e "${CYAN}$1 [Y/n]: ${NC}")" -n 1 -r; echo; [[ -z "
 # System checks
 check_root() { [[ $EUID -ne 0 ]] && error "This script must be run as root (use sudo)"; }
 
+# Function to check service status
+check_service_status() {
+    local service="$1"
+    if systemctl is-active --quiet "$service" 2>/dev/null; then
+        echo -e "${GREEN}● Running${NC}"
+    else
+        if systemctl is-enabled --quiet "$service" 2>/dev/null; then
+            echo -e "${YELLOW}● Stopped${NC}"
+        else
+            echo -e "${RED}● Not Installed${NC}"
+        fi
+    fi
+}
+
+# Function to get service version
+get_service_version() {
+    local service="$1"
+    case $service in
+        "apache2")
+            apache2 -v 2>/dev/null | head -1 | cut -d' ' -f3 | cut -d'/' -f2 || echo "N/A"
+            ;;
+        "mysql"|"mariadb")
+            mysql --version 2>/dev/null | awk '{print $5}' | sed 's/,$//' || echo "N/A"
+            ;;
+        "php")
+            php -v 2>/dev/null | head -1 | awk '{print $2}' || echo "N/A"
+            ;;
+        "postgresql")
+            sudo -u postgres psql --version 2>/dev/null | awk '{print $3}' || echo "N/A"
+            ;;
+        *)
+            echo "N/A"
+            ;;
+    esac
+}
+
+# Comprehensive system status display
+show_system_status() {
+    clear
+    echo -e "${CYAN}============================= System Status Overview ============================${NC}"
+    
+    # Core Services Status - One line
+    echo -e "${YELLOW}Services:${NC} Apache2 $(check_service_status apache2) | MySQL $(check_service_status mysql) | PHP ${GREEN}●${NC} v$(get_service_version php) | PostgreSQL $(check_service_status postgresql) | Redis $(check_service_status redis-server)"
+    
+    # System Resources - One line
+    local total_mem=$(free -h | awk '/^Mem:/{print $2}')
+    local used_mem=$(free -h | awk '/^Mem:/{print $3}')
+    local disk_usage=$(df -h / | awk 'NR==2 {print $5}')
+    local primary_ip=$(ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '127.0.0.1' | head -1)
+    echo -e "${YELLOW}System:${NC} Memory: $used_mem/$total_mem | Disk: $disk_usage used | IP: ${primary_ip:-N/A}"
+    
+    # Rclone status
+    local rclone_status="Not installed"
+    if command -v rclone >/dev/null 2>&1; then
+        local rclone_version=$(rclone version 2>/dev/null | head -1 | awk '{print $2}' | sed 's/^v//')
+        local rclone_remotes=$(rclone listremotes 2>/dev/null | wc -l)
+        local remote_text="remote"
+        [ "$rclone_remotes" -ne 1 ] && remote_text="remotes"
+        rclone_status="v${rclone_version} (${rclone_remotes} ${remote_text})"
+    fi
+    echo -e "${YELLOW}Rclone:${NC} ${rclone_status}"
+    
+    # Database counts - One line (without requiring authentication)
+    local mysql_status="Not running"
+    local pg_status="Not running"
+    local pg_db_names=""
+    
+    if systemctl is-active --quiet mysql 2>/dev/null || systemctl is-active --quiet mariadb 2>/dev/null; then
+        # Just show MySQL is running, don't try to count databases which requires auth
+        mysql_status="Running"
+    fi
+    
+    if systemctl is-active --quiet postgresql 2>/dev/null; then
+        # PostgreSQL usually allows local sudo access without password
+        local pg_db_count=$(sudo -u postgres psql -t -c "SELECT COUNT(*) FROM pg_database WHERE datistemplate = false AND datname NOT IN ('postgres');" 2>/dev/null | tr -d ' ')
+        if [ -n "$pg_db_count" ] && [ "$pg_db_count" -gt 0 ]; then
+            pg_db_names=$(sudo -u postgres psql -t -c "SELECT datname FROM pg_database WHERE datistemplate = false AND datname NOT IN ('postgres');" 2>/dev/null | grep -v '^$' | sed 's/^[[:space:]]*//' | paste -sd ', ')
+            pg_status="${pg_db_count} databases${pg_db_names:+ (}${pg_db_names}${pg_db_names:+)}"
+        else
+            pg_status="Running"
+        fi
+    fi
+    
+    echo -e "${YELLOW}Databases:${NC} MySQL: ${mysql_status} | PostgreSQL: ${pg_status}"
+    
+    # WordPress Websites
+    echo -e "${YELLOW}WordPress Websites:${NC}"
+    local site_count=0
+    local wp_sites=()
+    local site_statuses=()
+    local site_types=()
+    
+    if [ -d "/var/www" ]; then
+        for dir in /var/www/*/; do
+            if [ -d "$dir" ]; then
+                local domain=$(basename "$dir")
+                [ "$domain" = "html" ] && continue
+                
+                # Check if it's a WordPress site
+                if [ -f "$dir/wp-config.php" ]; then
+                    wp_sites+=("$domain")
+                    site_count=$((site_count + 1))
+                    
+                    # Check if site is accessible
+                    if [ -f "/etc/apache2/sites-enabled/${domain}.conf" ] || [ -f "/etc/apache2/sites-enabled/${domain}-le-ssl.conf" ]; then
+                        site_statuses+=("Active")
+                    else
+                        site_statuses+=("Disabled")
+                    fi
+                    
+                    # Check database type
+                    local db_type="MySQL"
+                    if [ -f "$dir/generator/config.json" ] || [ -f "$dir/config.json" ]; then
+                        local config_file=""
+                        [ -f "$dir/generator/config.json" ] && config_file="$dir/generator/config.json"
+                        [ -f "$dir/config.json" ] && config_file="$dir/config.json"
+                        
+                        if [ -n "$config_file" ]; then
+                            local pg_port=$(jq -r '.port // ""' "$config_file" 2>/dev/null)
+                            [[ "$pg_port" == "5432" ]] && db_type="PostgreSQL"
+                        fi
+                    fi
+                    site_types+=("$db_type")
+                else
+                    # Check for subdirectory WordPress installations
+                    for subdir in "$dir"*/; do
+                        if [ -d "$subdir" ] && [ -f "$subdir/wp-config.php" ]; then
+                            local subdir_name=$(basename "$subdir")
+                            wp_sites+=("$domain/$subdir_name")
+                            site_count=$((site_count + 1))
+                            
+                            if [ -f "/etc/apache2/sites-enabled/${domain}.conf" ] || [ -f "/etc/apache2/sites-enabled/${domain}-le-ssl.conf" ]; then
+                                site_statuses+=("Active")
+                            else
+                                site_statuses+=("Disabled")
+                            fi
+                            site_types+=("MySQL")
+                        fi
+                    done
+                fi
+            fi
+        done
+    fi
+    
+    if [ $site_count -eq 0 ]; then
+        echo -e "  No WordPress sites found"
+    else
+        for i in "${!wp_sites[@]}"; do
+            local status_color="${GREEN}"
+            [ "${site_statuses[i]}" = "Disabled" ] && status_color="${YELLOW}"
+            echo -e "  $((i+1)). ${BLUE}${wp_sites[i]}${NC} - ${status_color}${site_statuses[i]}${NC} (${site_types[i]})"
+        done
+    fi
+    
+    # SSL Certificates
+    echo -e "${YELLOW}SSL Certificates:${NC}"
+    if command -v certbot >/dev/null 2>&1; then
+        local cert_info=$(certbot certificates 2>/dev/null | grep -E "Certificate Name:|Expiry Date:")
+        if [ -n "$cert_info" ]; then
+            while IFS= read -r line; do
+                if [[ "$line" == *"Certificate Name:"* ]]; then
+                    local cert_name=$(echo "$line" | cut -d':' -f2 | xargs)
+                    echo -n "  $cert_name"
+                elif [[ "$line" == *"Expiry Date:"* ]]; then
+                    local expiry=$(echo "$line" | cut -d':' -f2- | xargs | cut -d' ' -f1-3)
+                    local days_left=$(echo "$line" | grep -oP '\d+(?= days\))')
+                    [ -z "$days_left" ] && days_left="EXPIRED"
+                    echo " - Expires: $expiry (${days_left} days)"
+                fi
+            done <<< "$cert_info"
+        else
+            echo -e "  No certificates found"
+        fi
+    else
+        echo -e "  Certbot not installed"
+    fi
+    
+    # PHP Extensions - Compact display
+    echo -e "${YELLOW}PHP Extensions:${NC}"
+    local php_modules=("mysqli" "curl" "gd" "mbstring" "xml" "zip" "imagick" "redis" "opcache" "pgsql")
+    local installed_modules=""
+    local missing_modules=""
+    
+    for module in "${php_modules[@]}"; do
+        if php -m 2>/dev/null | grep -q "^$module$"; then
+            installed_modules="${installed_modules:+$installed_modules, }$module"
+        else
+            missing_modules="${missing_modules:+$missing_modules, }$module"
+        fi
+    done
+    
+    [ -n "$installed_modules" ] && echo -e "  ${GREEN}Installed:${NC} $installed_modules"
+    [ -n "$missing_modules" ] && echo -e "  ${RED}Missing:${NC} $missing_modules"
+    
+    # System Updates - One line
+    local last_update=$(stat -c %y /var/lib/apt/periodic/update-success-stamp 2>/dev/null | cut -d' ' -f1)
+    local updates_available=$(apt list --upgradable 2>/dev/null | grep -c "upgradable")
+    [ -z "$updates_available" ] && updates_available=0
+    
+    echo -e "${YELLOW}Updates:${NC} Last check: ${last_update:-Unknown} | Status: $([ "$updates_available" -gt 0 ] && echo -e "${YELLOW}$updates_available packages available${NC}" || echo -e "${GREEN}Up to date${NC}")"
+    echo -e "${CYAN}=================================================================================${NC}"
+}
+
 # Execute folder run.sh script
 execute_folder_script() {
     local folder="$1"
@@ -92,16 +295,23 @@ show_header() {
     echo "                   Comprehensive LAMP Stack Management"
     echo "============================================================================="
     echo -e "${NC}"
-    echo -e "${CYAN}Log file: $LOG_FILE${NC}"
+    
+    # Quick status line
+    local apache_status=$(systemctl is-active apache2 2>/dev/null || echo "inactive")
+    local mysql_status=$(systemctl is-active mysql 2>/dev/null || systemctl is-active mariadb 2>/dev/null || echo "inactive")
+    local pg_status=$(systemctl is-active postgresql 2>/dev/null || echo "inactive")
+    
+    echo -e "${CYAN}Services: Apache:${NC}$([ "$apache_status" = "active" ] && echo -e "${GREEN}●${NC}" || echo -e "${RED}●${NC}") ${CYAN}MySQL:${NC}$([ "$mysql_status" = "active" ] && echo -e "${GREEN}●${NC}" || echo -e "${RED}●${NC}") ${CYAN}PostgreSQL:${NC}$([ "$pg_status" = "active" ] && echo -e "${GREEN}●${NC}" || echo -e "${RED}●${NC}")"
     echo
 }
 
 # Category-based main menu
 show_menu() {
-    clear
-    echo -e "${CYAN}============================================================================="
-    echo "                    WordPress LAMP Stack Management System"
-    echo -e "=============================================================================${NC}"
+    # Show system status by default
+    show_system_status
+    
+    echo ""
+    echo -e "${CYAN}==================== WordPress LAMP Stack Management System =====================${NC}"
     echo "1. WordPress Management         - Installation and maintenance tools"
     echo "2. New Website Setup            - Install blank website with Apache + SSL"
     echo "3. Backup & Restore             - Backup and restore operations"
@@ -113,7 +323,7 @@ show_menu() {
     echo "9. Troubleshooting              - Diagnostic and repair tools"
     echo ""
     echo "0. Exit"
-    echo -e "${CYAN}=============================================================================${NC}"
+    echo -e "${CYAN}=================================================================================${NC}"
 }
 
 # Classic detailed menu (for backward compatibility)
@@ -185,7 +395,10 @@ handle_legacy_cli() {
         "phpinfo") execute_script "$SCRIPT_DIR/php/view_info.sh" "View PHP Information" ;;
         
         # System operations
-        "status") execute_script "$SCRIPT_DIR/system/status_check.sh" "System Status Check" ;;
+        "status") 
+            show_system_status
+            read -p "Press Enter to continue..."
+            ;;
         "disk") execute_script "$SCRIPT_DIR/system/disk_space_monitor.sh" "Disk Space Monitor" ;;
         "ssh") execute_script "$SCRIPT_DIR/system/toggle_root_ssh.sh" "Toggle Root SSH" ;;
         "utils") execute_script "$SCRIPT_DIR/system/install_utilities.sh" "Install System Utilities" ;;

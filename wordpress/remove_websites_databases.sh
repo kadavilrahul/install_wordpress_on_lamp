@@ -40,19 +40,84 @@ load_config() {
     fi
 }
 
-# Website removal with proper MySQL authentication and testing
+# Check if PostgreSQL is installed and running
+check_postgresql() {
+    if systemctl is-active --quiet postgresql 2>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Get PostgreSQL credentials
+get_postgresql_auth() {
+    if check_postgresql; then
+        # Check if we can connect as postgres user without password
+        if sudo -u postgres psql -c "SELECT 1;" >/dev/null 2>&1; then
+            PG_AUTH_METHOD="sudo"
+            return 0
+        else
+            echo -e "${CYAN}PostgreSQL Authentication Required:${NC}"
+            read -sp "Enter PostgreSQL password for postgres user: " PG_PASSWORD; echo
+            export PGPASSWORD="$PG_PASSWORD"
+            PG_AUTH_METHOD="password"
+        fi
+    fi
+    return 1
+}
+
+# Execute PostgreSQL command
+pg_execute() {
+    local query="$1"
+    if [ "$PG_AUTH_METHOD" = "sudo" ]; then
+        sudo -u postgres psql -c "$query" 2>/dev/null
+    else
+        PGPASSWORD="$PG_PASSWORD" psql -U postgres -h localhost -c "$query" 2>/dev/null
+    fi
+}
+
+# Execute PostgreSQL command for specific database
+pg_execute_db() {
+    local db="$1"
+    local query="$2"
+    if [ "$PG_AUTH_METHOD" = "sudo" ]; then
+        sudo -u postgres psql -d "$db" -c "$query" 2>/dev/null
+    else
+        PGPASSWORD="$PG_PASSWORD" psql -U postgres -h localhost -d "$db" -c "$query" 2>/dev/null
+    fi
+}
+
+# Website removal with proper MySQL and PostgreSQL authentication and testing
 remove_websites_and_databases() {
-    # Get MySQL credentials first
-    if [ -z "$DB_ROOT_PASSWORD" ]; then
-        echo -e "${CYAN}MySQL Authentication Required:${NC}"
-        read -sp "Enter MySQL root password: " DB_ROOT_PASSWORD; echo
+    local has_mysql=false
+    local has_postgresql=false
+    
+    # Check and get MySQL credentials
+    if systemctl is-active --quiet mysql 2>/dev/null || systemctl is-active --quiet mariadb 2>/dev/null; then
+        has_mysql=true
+        if [ -z "$DB_ROOT_PASSWORD" ]; then
+            echo -e "${CYAN}MySQL Authentication Required:${NC}"
+            read -sp "Enter MySQL root password: " DB_ROOT_PASSWORD; echo
+        fi
+        
+        # Test MySQL connection
+        if ! mysql -u root -p"$DB_ROOT_PASSWORD" -e "SELECT 1;" 2>/dev/null; then
+            warn "Invalid MySQL password or MySQL not accessible - will skip MySQL databases"
+            has_mysql=false
+        else
+            MYSQL_AUTH="-u root -p$DB_ROOT_PASSWORD"
+        fi
     fi
     
-    # Test MySQL connection
-    if ! mysql -u root -p"$DB_ROOT_PASSWORD" -e "SELECT 1;" 2>/dev/null; then
-        error "Invalid MySQL password or MySQL not accessible"
+    # Check and get PostgreSQL credentials
+    if check_postgresql; then
+        has_postgresql=true
+        get_postgresql_auth
     fi
-    MYSQL_AUTH="-u root -p$DB_ROOT_PASSWORD"
+    
+    if [ "$has_mysql" = false ] && [ "$has_postgresql" = false ]; then
+        warn "No database servers (MySQL or PostgreSQL) are accessible"
+    fi
     
     # Discover websites with better detection
     local sites=()
@@ -182,31 +247,77 @@ remove_single_site() {
     info "Removing SSL certificates for $domain_for_apache..."
     certbot delete --cert-name "$domain_for_apache" --non-interactive 2>/dev/null || true
     
-    # Remove database if WordPress
+    # Remove database if WordPress or has database configuration
     if [[ "$site_type" == *"WordPress"* ]] && [ -f "$site_path/wp-config.php" ]; then
         info "Removing WordPress database..."
         local db_name=$(grep "DB_NAME" "$site_path/wp-config.php" 2>/dev/null | cut -d "'" -f 4)
         local db_user=$(grep "DB_USER" "$site_path/wp-config.php" 2>/dev/null | cut -d "'" -f 4)
+        local db_host=$(grep "DB_HOST" "$site_path/wp-config.php" 2>/dev/null | cut -d "'" -f 4)
+        
+        # Determine if it's MySQL or PostgreSQL
+        local is_postgresql=false
+        if [ -n "$db_host" ] && [[ "$db_host" == *"5432"* ]]; then
+            is_postgresql=true
+        fi
+        
+        # Also check for config.json files that might indicate PostgreSQL
+        if [ -f "$site_path/generator/config.json" ] || [ -f "$site_path/config.json" ]; then
+            local config_file=""
+            [ -f "$site_path/generator/config.json" ] && config_file="$site_path/generator/config.json"
+            [ -f "$site_path/config.json" ] && config_file="$site_path/config.json"
+            
+            if [ -n "$config_file" ]; then
+                # Check if it has PostgreSQL configuration
+                local pg_host=$(jq -r '.host // ""' "$config_file" 2>/dev/null)
+                local pg_port=$(jq -r '.port // ""' "$config_file" 2>/dev/null)
+                local pg_database=$(jq -r '.database // ""' "$config_file" 2>/dev/null)
+                local pg_username=$(jq -r '.username // ""' "$config_file" 2>/dev/null)
+                
+                if [[ "$pg_port" == "5432" ]] || [[ -n "$pg_database" && -n "$pg_username" ]]; then
+                    is_postgresql=true
+                    [ -n "$pg_database" ] && db_name="$pg_database"
+                    [ -n "$pg_username" ] && db_user="$pg_username"
+                fi
+            fi
+        fi
         
         if [ -n "$db_name" ]; then
-            info "Dropping database: $db_name"
-            if mysql $MYSQL_AUTH -e "DROP DATABASE IF EXISTS \`$db_name\`;" 2>/dev/null; then
-                success "Database $db_name dropped"
-            else
-                warn "Failed to drop database $db_name"
+            if [ "$is_postgresql" = true ] && [ "$has_postgresql" = true ]; then
+                info "Dropping PostgreSQL database: $db_name"
+                if pg_execute "DROP DATABASE IF EXISTS \"$db_name\";"; then
+                    success "PostgreSQL database $db_name dropped"
+                else
+                    warn "Failed to drop PostgreSQL database $db_name"
+                fi
+                
+                if [ -n "$db_user" ]; then
+                    info "Dropping PostgreSQL user: $db_user"
+                    if pg_execute "DROP USER IF EXISTS \"$db_user\";"; then
+                        success "PostgreSQL user $db_user dropped"
+                    else
+                        warn "Failed to drop PostgreSQL user $db_user"
+                    fi
+                fi
+            elif [ "$has_mysql" = true ]; then
+                info "Dropping MySQL database: $db_name"
+                if mysql $MYSQL_AUTH -e "DROP DATABASE IF EXISTS \`$db_name\`;" 2>/dev/null; then
+                    success "MySQL database $db_name dropped"
+                else
+                    warn "Failed to drop MySQL database $db_name"
+                fi
+                
+                if [ -n "$db_user" ]; then
+                    info "Dropping MySQL user: $db_user"
+                    if mysql $MYSQL_AUTH -e "DROP USER IF EXISTS '$db_user'@'localhost';" 2>/dev/null; then
+                        success "MySQL user $db_user dropped"
+                    else
+                        warn "Failed to drop MySQL user $db_user"
+                    fi
+                fi
+                
+                mysql $MYSQL_AUTH -e "FLUSH PRIVILEGES;" 2>/dev/null || true
             fi
         fi
-        
-        if [ -n "$db_user" ]; then
-            info "Dropping user: $db_user"
-            if mysql $MYSQL_AUTH -e "DROP USER IF EXISTS '$db_user'@'localhost';" 2>/dev/null; then
-                success "User $db_user dropped"
-            else
-                warn "Failed to drop user $db_user"
-            fi
-        fi
-        
-        mysql $MYSQL_AUTH -e "FLUSH PRIVILEGES;" 2>/dev/null || true
     fi
     
     # Remove website files
