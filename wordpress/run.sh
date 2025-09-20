@@ -80,9 +80,10 @@ show_menu() {
     echo "                         WordPress Management Tools"
     echo -e "=============================================================================${NC}"
     echo "1. Install LAMP Stack + WordPress    ./wordpress/run.sh install   # Complete LAMP installation with WordPress setup"
-    echo "2. Install PHP PostgreSQL Extensions ./wordpress/run.sh postgres  # Install PHP extensions for PostgreSQL"
-    echo "3. Remove Websites & Databases       ./wordpress/run.sh remove    # Clean removal of websites and data"
-    echo "4. Remove Orphaned Databases         ./wordpress/run.sh cleanup   # Clean up databases without websites"
+    echo "2. Install PostgreSQL (Full)         ./wordpress/run.sh postgres  # Install PostgreSQL service + PHP extensions"
+    echo "3. Install PostgreSQL PHP Ext Only   ./wordpress/run.sh pg-ext    # Install only PHP PostgreSQL extensions"
+    echo "4. Remove Websites & Databases       ./wordpress/run.sh remove    # Clean removal of websites and data"
+    echo "5. Remove Orphaned Databases         ./wordpress/run.sh cleanup   # Clean up databases without websites"
     echo "0. Back to Main Menu"
     echo -e "${CYAN}=============================================================================${NC}"
 }
@@ -96,16 +97,18 @@ show_cli_help() {
     echo ""
     echo -e "${GREEN}Available Commands:${NC}"
     echo "  install   - Install LAMP Stack + WordPress"
+    echo "  postgres  - Install PostgreSQL service + PHP extensions (full)"
+    echo "  pg-ext    - Install only PHP PostgreSQL extensions"
     echo "  remove    - Remove websites & databases"
     echo "  cleanup   - Remove orphaned databases"
-    echo "  postgres  - Install PHP PostgreSQL extensions"
     echo "  --help    - Show this help"
     echo ""
     echo -e "${CYAN}Examples:${NC}"
     echo "  ./wordpress/run.sh install"
+    echo "  ./wordpress/run.sh postgres"
+    echo "  ./wordpress/run.sh pg-ext"
     echo "  ./wordpress/run.sh remove"
     echo "  ./wordpress/run.sh cleanup"
-    echo "  ./wordpress/run.sh postgres"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
@@ -115,9 +118,10 @@ handle_cli_command() {
     
     case $command in
         "install"|"lamp") execute_script "$SCRIPT_DIR/install_lamp_stack.sh" "LAMP Stack + WordPress Installation" ;;
+        "postgres"|"pg") execute_script "$SCRIPT_DIR/install_postgresql.sh" "PostgreSQL Full Installation" "--install-all" ;;
+        "pg-ext"|"pgext") execute_script "$SCRIPT_DIR/install_postgresql.sh" "PHP PostgreSQL Extensions Installation" "--install-php-extensions" ;;
         "remove") execute_script "$SCRIPT_DIR/remove_websites_databases.sh" "Remove Websites & Databases" ;;
         "cleanup"|"orphan") execute_script "$SCRIPT_DIR/remove_orphaned_databases.sh" "Remove Orphaned Databases" ;;
-        "postgres"|"pg") execute_script "$SCRIPT_DIR/install_postgresql.sh" "PHP PostgreSQL Extensions Installation" "--install-php-extensions" ;;
         "--help"|"-h"|"help") 
             show_cli_help
             exit 0
@@ -141,20 +145,21 @@ main() {
     
     while true; do
         show_menu
-        echo -n "Enter option (0-4): "
+        echo -n "Enter option (0-5): "
         read choice
         
         case $choice in
             1) execute_script "$SCRIPT_DIR/install_lamp_stack.sh" "LAMP Stack + WordPress Installation" ;;
-            2) execute_script "$SCRIPT_DIR/install_postgresql.sh" "PHP PostgreSQL Extensions Installation" "--install-php-extensions" ;;
-            3) execute_script "$SCRIPT_DIR/remove_websites_databases.sh" "Remove Websites & Databases" ;;
-            4) execute_script "$SCRIPT_DIR/remove_orphaned_databases.sh" "Remove Orphaned Databases" ;;
+            2) execute_script "$SCRIPT_DIR/install_postgresql.sh" "PostgreSQL Full Installation" "--install-all" ;;
+            3) execute_script "$SCRIPT_DIR/install_postgresql.sh" "PHP PostgreSQL Extensions Installation" "--install-php-extensions" ;;
+            4) execute_script "$SCRIPT_DIR/remove_websites_databases.sh" "Remove Websites & Databases" ;;
+            5) execute_script "$SCRIPT_DIR/remove_orphaned_databases.sh" "Remove Orphaned Databases" ;;
             0) 
                 echo -e "${GREEN}Returning to main menu...${NC}"
                 exit 0 
                 ;;
             *) 
-                echo -e "${RED}Invalid option. Please select 0-4.${NC}"
+                echo -e "${RED}Invalid option. Please select 0-5.${NC}"
                 sleep 1
                 ;;
         esac

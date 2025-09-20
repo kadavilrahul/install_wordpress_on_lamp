@@ -1,9 +1,10 @@
 #!/bin/bash
 
 # PostgreSQL Installation Script with Extensions
-# Similar to the one in /var/www/nilgiristores.in/generator
+# Handles PostgreSQL service installation and PHP extensions
+# Database creation is handled by restore scripts based on config.json
 # Author: System Administrator
-# Version: 1.0
+# Version: 2.0
 
 # Color codes for output
 RED='\033[0;31m'
@@ -13,8 +14,6 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Default configuration
-DEFAULT_DB_NAME="wordpress_db"
-DEFAULT_DB_USER="wordpress_user"
 DEFAULT_VERSION="16"
 
 # Function to print colored output
@@ -181,140 +180,7 @@ install_postgresql() {
     print_message "$GREEN" "✅ PostgreSQL service started and enabled"
 }
 
-# Function to get database configuration from user
-get_database_config() {
-    echo ""
-    print_message "$BLUE" "📋 Database Configuration"
-    echo ""
-    
-    # Database name
-    read -p "Enter database name (default: $DEFAULT_DB_NAME): " db_name
-    if [ -z "$db_name" ]; then
-        db_name="$DEFAULT_DB_NAME"
-    fi
-    
-    # Validate database name
-    if [[ ! "$db_name" =~ ^[a-zA-Z][a-zA-Z0-9_]*$ ]]; then
-        print_message "$RED" "❌ Invalid database name. Use only letters, numbers, and underscores."
-        exit 1
-    fi
-    
-    # Database user
-    read -p "Enter database user (default: $DEFAULT_DB_USER): " db_user
-    if [ -z "$db_user" ]; then
-        db_user="$DEFAULT_DB_USER"
-    fi
-    
-    # Validate username
-    if [[ ! "$db_user" =~ ^[a-zA-Z][a-zA-Z0-9_]*$ ]]; then
-        print_message "$RED" "❌ Invalid username. Use only letters, numbers, and underscores."
-        exit 1
-    fi
-    
-    # Database password
-    while true; do
-        read -s -p "Enter database password: " db_pass
-        echo
-        if [ -z "$db_pass" ]; then
-            print_message "$RED" "❌ Password cannot be empty"
-            continue
-        fi
-        
-        read -s -p "Confirm database password: " db_pass_confirm
-        echo
-        
-        if [ "$db_pass" != "$db_pass_confirm" ]; then
-            print_message "$RED" "❌ Passwords do not match. Please try again."
-            continue
-        fi
-        
-        # Check password strength
-        if [ ${#db_pass} -lt 8 ]; then
-            print_message "$YELLOW" "⚠️  Password is less than 8 characters"
-            read -p "Use this weak password anyway? [y/N]: " use_weak
-            if [[ ! "$use_weak" =~ ^[Yy]$ ]]; then
-                continue
-            fi
-        fi
-        
-        break
-    done
-    
-    echo ""
-    print_message "$BLUE" "Configuration Summary:"
-    echo "  Database: $db_name"
-    echo "  User: $db_user"
-    echo "  Password: [HIDDEN]"
-    echo ""
-    
-    read -p "Proceed with this configuration? [Y/n]: " confirm
-    if [[ "$confirm" =~ ^[Nn]$ ]]; then
-        print_message "$RED" "❌ Configuration cancelled"
-        exit 1
-    fi
-}
 
-# Function to create database and user
-create_database() {
-    print_message "$BLUE" "🔧 Creating database and user..."
-    
-    # Check if database already exists
-    db_exists=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='$db_name'" 2>/dev/null)
-    if [ "$db_exists" = "1" ]; then
-        print_message "$YELLOW" "⚠️  Database '$db_name' already exists"
-        read -p "Drop and recreate? [y/N]: " drop_db
-        if [[ "$drop_db" =~ ^[Yy]$ ]]; then
-            sudo -u postgres psql -c "DROP DATABASE IF EXISTS $db_name;" 2>/dev/null
-            print_message "$GREEN" "✅ Existing database dropped"
-        else
-            print_message "$BLUE" "Using existing database"
-        fi
-    fi
-    
-    # Check if user already exists
-    user_exists=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_user WHERE usename='$db_user'" 2>/dev/null)
-    if [ "$user_exists" = "1" ]; then
-        print_message "$YELLOW" "⚠️  User '$db_user' already exists"
-        read -p "Drop and recreate? [y/N]: " drop_user
-        if [[ "$drop_user" =~ ^[Yy]$ ]]; then
-            sudo -u postgres psql -c "DROP USER IF EXISTS $db_user;" 2>/dev/null
-            print_message "$GREEN" "✅ Existing user dropped"
-        else
-            # Update password for existing user
-            sudo -u postgres psql -c "ALTER USER $db_user WITH PASSWORD '$db_pass';" 2>/dev/null
-            print_message "$GREEN" "✅ Password updated for existing user"
-        fi
-    fi
-    
-    # Create database if it doesn't exist
-    if [ "$db_exists" != "1" ] || [[ "$drop_db" =~ ^[Yy]$ ]]; then
-        sudo -u postgres psql -c "CREATE DATABASE $db_name;" 2>/dev/null
-        if [ $? -eq 0 ]; then
-            print_message "$GREEN" "✅ Database '$db_name' created"
-        else
-            print_message "$RED" "❌ Failed to create database"
-            exit 1
-        fi
-    fi
-    
-    # Create user if it doesn't exist
-    if [ "$user_exists" != "1" ] || [[ "$drop_user" =~ ^[Yy]$ ]]; then
-        sudo -u postgres psql -c "CREATE USER $db_user WITH PASSWORD '$db_pass';" 2>/dev/null
-        if [ $? -eq 0 ]; then
-            print_message "$GREEN" "✅ User '$db_user' created"
-        else
-            print_message "$RED" "❌ Failed to create user"
-            exit 1
-        fi
-    fi
-    
-    # Grant privileges
-    sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE $db_name TO $db_user;" 2>/dev/null
-    sudo -u postgres psql -d "$db_name" -c "GRANT ALL ON SCHEMA public TO $db_user;" 2>/dev/null
-    sudo -u postgres psql -d "$db_name" -c "GRANT CREATE ON SCHEMA public TO $db_user;" 2>/dev/null
-    
-    print_message "$GREEN" "✅ Privileges granted to user '$db_user'"
-}
 
 # Function to install PHP PostgreSQL extensions
 install_php_extensions() {
@@ -406,9 +272,9 @@ install_php_extensions() {
     echo ""
 }
 
-# Function to install extensions
+# Function to install common extensions in template1 database
 install_extensions() {
-    print_message "$BLUE" "🔌 Installing PostgreSQL extensions..."
+    print_message "$BLUE" "🔌 Installing PostgreSQL extensions in template database..."
     echo ""
     
     # Array of extensions to install
@@ -421,7 +287,7 @@ install_extensions() {
         "pg_stat_statements:Query performance monitoring"
     )
     
-    # Install each extension
+    # Install each extension in template1 so all new databases have them
     for ext_info in "${extensions[@]}"; do
         IFS=':' read -r ext_name ext_desc <<< "$ext_info"
         
@@ -439,8 +305,8 @@ install_extensions() {
             fi
         fi
         
-        # Try to install extension
-        result=$(sudo -u postgres psql -d "$db_name" -c "CREATE EXTENSION IF NOT EXISTS \"$ext_name\";" 2>&1)
+        # Try to install extension in template1 database
+        result=$(sudo -u postgres psql -d template1 -c "CREATE EXTENSION IF NOT EXISTS \"$ext_name\";" 2>&1)
         
         if echo "$result" | grep -q "ERROR"; then
             print_message "$YELLOW" "⚠️  Failed"
@@ -451,7 +317,8 @@ install_extensions() {
     done
     
     echo ""
-    print_message "$GREEN" "✅ Extension installation completed"
+    print_message "$GREEN" "✅ Extension installation completed in template database"
+    print_message "$BLUE" "   All new databases will have these extensions available"
 }
 
 # Function to configure PostgreSQL for optimal performance
@@ -480,7 +347,7 @@ configure_postgresql() {
 
 # Performance Tuning - Added by install_postgresql.sh
 shared_buffers = ${shared_buffers}MB
-effective_cache_size = ${effective_cache}GB
+effective_cache_size = ${effective_cache}MB
 maintenance_work_mem = $((total_mem / 16))MB
 wal_buffers = 16MB
 default_statistics_target = 100
@@ -510,17 +377,18 @@ EOF
     
     print_message "$GREEN" "✅ Performance settings applied"
     
-    # Configure authentication (pg_hba.conf)
+    # Configure authentication (pg_hba.conf) for local connections
     hba_file="/etc/postgresql/$pg_version/main/pg_hba.conf"
     if [ -f "$hba_file" ]; then
         # Backup original
         cp "$hba_file" "${hba_file}.backup.$(date +%Y%m%d_%H%M%S)"
         
-        # Add entry for our database/user if not exists
-        if ! grep -q "$db_name.*$db_user" "$hba_file"; then
-            echo "host    $db_name    $db_user    127.0.0.1/32    md5" >> "$hba_file"
-            echo "host    $db_name    $db_user    ::1/128         md5" >> "$hba_file"
-            print_message "$GREEN" "✅ Authentication rules added"
+        # Ensure local connections can use md5 authentication
+        if ! grep -q "^host.*all.*all.*127.0.0.1/32.*md5" "$hba_file"; then
+            echo "# Allow local connections with password authentication" >> "$hba_file"
+            echo "host    all             all             127.0.0.1/32            md5" >> "$hba_file"
+            echo "host    all             all             ::1/128                 md5" >> "$hba_file"
+            print_message "$GREEN" "✅ Authentication rules updated for local connections"
         fi
     fi
     
@@ -534,89 +402,53 @@ EOF
         print_message "$RED" "❌ PostgreSQL failed to restart"
         print_message "$YELLOW" "   Restoring original configuration..."
         mv "${config_file}.backup."* "$config_file"
-        mv "${hba_file}.backup."* "$hba_file"
+        if [ -f "${hba_file}.backup."* ]; then
+            mv "${hba_file}.backup."* "$hba_file"
+        fi
         systemctl restart postgresql
     fi
 }
 
-# Function to test database connection
-test_connection() {
-    print_message "$BLUE" "🧪 Testing database connection..."
+# Function to test PostgreSQL service
+test_service() {
+    print_message "$BLUE" "🧪 Testing PostgreSQL service..."
     
-    # Test with psql
-    PGPASSWORD="$db_pass" psql -h localhost -U "$db_user" -d "$db_name" -c "SELECT version();" >/dev/null 2>&1
-    
-    if [ $? -eq 0 ]; then
-        print_message "$GREEN" "✅ Connection test successful"
+    # Check if service is running
+    if systemctl is-active --quiet postgresql; then
+        print_message "$GREEN" "✅ PostgreSQL service is running"
         
-        # Get and display database info
+        # Get and display service info
         echo ""
-        print_message "$BLUE" "📊 Database Information:"
+        print_message "$BLUE" "📊 PostgreSQL Information:"
         
         # PostgreSQL version
         pg_version=$(sudo -u postgres psql -t -c "SELECT version();" 2>/dev/null | head -1)
         echo "  PostgreSQL: $(echo $pg_version | cut -d' ' -f1-3)"
         
-        # Database size
-        db_size=$(sudo -u postgres psql -d "$db_name" -t -c "SELECT pg_size_pretty(pg_database_size('$db_name'));" 2>/dev/null | tr -d ' ')
-        echo "  Database Size: $db_size"
+        # List databases
+        echo "  Existing Databases:"
+        databases=$(sudo -u postgres psql -t -c "SELECT datname FROM pg_database WHERE datname NOT IN ('postgres', 'template0', 'template1');" 2>/dev/null)
+        if [ -z "$databases" ]; then
+            echo "    (none)"
+        else
+            for db in $databases; do
+                echo "    - $db"
+            done
+        fi
         
-        # List installed extensions
-        echo "  Installed Extensions:"
-        extensions=$(sudo -u postgres psql -d "$db_name" -t -c "SELECT extname FROM pg_extension WHERE extname != 'plpgsql';" 2>/dev/null)
-        for ext in $extensions; do
-            echo "    - $ext"
-        done
+        # Check installed extensions in template1
+        echo "  Available Extensions (template1):"
+        extensions=$(sudo -u postgres psql -d template1 -t -c "SELECT extname FROM pg_extension WHERE extname != 'plpgsql';" 2>/dev/null)
+        if [ -z "$extensions" ]; then
+            echo "    (none)"
+        else
+            for ext in $extensions; do
+                echo "    - $ext"
+            done
+        fi
     else
-        print_message "$RED" "❌ Connection test failed"
-        print_message "$YELLOW" "   Please check your credentials and PostgreSQL configuration"
-    fi
-}
-
-# Function to create backup script
-create_backup_script() {
-    print_message "$BLUE" "📝 Creating backup script..."
-    
-    backup_script="/usr/local/bin/backup_postgresql_${db_name}.sh"
-    
-    cat > "$backup_script" << EOF
-#!/bin/bash
-# PostgreSQL Backup Script for $db_name
-# Generated by install_postgresql.sh
-
-BACKUP_DIR="/var/backups/postgresql"
-DB_NAME="$db_name"
-DB_USER="$db_user"
-TIMESTAMP=\$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="\${BACKUP_DIR}/\${DB_NAME}_\${TIMESTAMP}.sql.gz"
-
-# Create backup directory if it doesn't exist
-mkdir -p "\$BACKUP_DIR"
-
-# Perform backup
-export PGPASSWORD="$db_pass"
-pg_dump -h localhost -U "\$DB_USER" -d "\$DB_NAME" | gzip > "\$BACKUP_FILE"
-
-if [ \$? -eq 0 ]; then
-    echo "✅ Backup successful: \$BACKUP_FILE"
-    
-    # Keep only last 7 days of backups
-    find "\$BACKUP_DIR" -name "\${DB_NAME}_*.sql.gz" -mtime +7 -delete
-else
-    echo "❌ Backup failed"
-    exit 1
-fi
-EOF
-    
-    chmod +x "$backup_script"
-    print_message "$GREEN" "✅ Backup script created: $backup_script"
-    
-    # Add to crontab for daily backups
-    read -p "Add daily automatic backup to crontab? [Y/n]: " add_cron
-    if [[ ! "$add_cron" =~ ^[Nn]$ ]]; then
-        # Add to root's crontab
-        (crontab -l 2>/dev/null; echo "0 2 * * * $backup_script") | crontab -
-        print_message "$GREEN" "✅ Daily backup scheduled at 2:00 AM"
+        print_message "$RED" "❌ PostgreSQL service is not running"
+        print_message "$YELLOW" "   Try: systemctl start postgresql"
     fi
 }
 
@@ -630,80 +462,65 @@ show_summary() {
     
     print_message "$BLUE" "📋 Installation Summary:"
     echo ""
-    echo "Database Connection Details:"
+    echo "PostgreSQL Service:"
     echo "  Host: localhost"
     echo "  Port: 5432"
-    echo "  Database: $db_name"
-    echo "  Username: $db_user"
-    echo "  Password: [saved securely]"
+    echo "  Status: $(systemctl is-active postgresql)"
     echo ""
-    echo "Connection String:"
-    echo "  postgresql://$db_user:****@localhost:5432/$db_name"
+    
+    # Get PostgreSQL version
+    pg_version=$(sudo -u postgres psql -t -c "SELECT version();" 2>/dev/null | head -1)
+    echo "Version: $(echo $pg_version | cut -d' ' -f1-3)"
     echo ""
-    echo "PHP Connection Example:"
-    echo '  $conn = pg_connect("host=localhost dbname='$db_name' user='$db_user' password=****");'
+    
+    print_message "$BLUE" "🔧 Database Creation:"
+    echo "Databases will be created automatically when restoring sites"
+    echo "using restore_postgresql.sh based on each domain's config.json"
+    echo ""
+    
+    print_message "$BLUE" "📝 PHP Connection Example:"
+    echo 'After database creation via restore script:'
+    echo '  $conn = pg_connect("host=localhost dbname=your_db user=your_user password=your_pass");'
     echo ""
     echo "Python Connection Example:"
     echo '  import psycopg2'
-    echo '  conn = psycopg2.connect(host="localhost", database="'$db_name'", user="'$db_user'", password="****")'
+    echo '  conn = psycopg2.connect(host="localhost", database="your_db", user="your_user", password="your_pass")'
     echo ""
     
-    if [ -f "$backup_script" ]; then
-        echo "Backup Script: $backup_script"
-        echo "  Run manually: sudo $backup_script"
-        echo ""
-    fi
-    
-    print_message "$YELLOW" "⚠️  Important Security Notes:"
-    echo "  1. Store database credentials securely"
-    echo "  2. Regularly update PostgreSQL for security patches"
-    echo "  3. Configure firewall to restrict database access"
-    echo "  4. Enable SSL for remote connections"
-    echo "  5. Regularly backup your database"
+    print_message "$YELLOW" "⚠️  Important Notes:"
+    echo "  1. PostgreSQL service is now installed and running"
+    echo "  2. PHP PostgreSQL extensions are installed"
+    echo "  3. Common extensions are available in template database"
+    echo "  4. Use restore_postgresql.sh to create databases from config.json"
+    echo "  5. Each domain should have its own database configuration"
     echo ""
     
     print_message "$BLUE" "📚 Useful Commands:"
-    echo "  Connect to database:     sudo -u postgres psql -d $db_name"
     echo "  List all databases:      sudo -u postgres psql -l"
     echo "  Check service status:    systemctl status postgresql"
     echo "  View logs:              journalctl -u postgresql -n 50"
-    echo "  Backup database:        $backup_script"
+    echo "  Restart service:        systemctl restart postgresql"
+    echo "  Connect as postgres:    sudo -u postgres psql"
     echo ""
-    
-    # Save credentials to file
-    cred_file="/root/.postgresql_${db_name}_credentials"
-    cat > "$cred_file" << EOF
-# PostgreSQL Credentials for $db_name
-# Generated: $(date)
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=$db_name
-DB_USER=$db_user
-DB_PASS=$db_pass
-EOF
-    chmod 600 "$cred_file"
-    print_message "$GREEN" "✅ Credentials saved to: $cred_file (mode 600)"
 }
 
 # Main installation menu
 show_menu() {
     echo ""
     print_message "$BLUE" "=========================================="
-    print_message "$BLUE" "PostgreSQL Installation Menu"
+    print_message "$BLUE" "PostgreSQL Service Installation Menu"
     print_message "$BLUE" "=========================================="
     echo ""
-    echo "1. Complete Installation (PostgreSQL + Database + Extensions)"
-    echo "2. Install PostgreSQL Only"
-    echo "3. Create Database and User Only"
-    echo "4. Install Database Extensions Only"
-    echo "5. Install PHP PostgreSQL Extensions"
-    echo "6. Configure Performance Settings"
-    echo "7. Test Database Connection"
-    echo "8. Create Backup Script"
-    echo "9. Uninstall PostgreSQL"
+    echo "1. Complete Installation (PostgreSQL + PHP Extensions + Optimizations)"
+    echo "2. Install PostgreSQL Service Only"
+    echo "3. Install PHP PostgreSQL Extensions Only"
+    echo "4. Install PostgreSQL Extensions in Template Database"
+    echo "5. Configure Performance Settings"
+    echo "6. Test PostgreSQL Service"
+    echo "7. Uninstall PostgreSQL"
     echo "0. Exit"
     echo ""
-    read -p "Select option [0-9]: " choice
+    read -p "Select option [0-7]: " choice
     
     case $choice in
         1)
@@ -712,56 +529,37 @@ show_menu() {
             if check_existing_installation; then
                 install_postgresql
             fi
-            get_database_config
-            create_database
             install_extensions
+            install_php_extensions
             configure_postgresql
-            test_connection
-            create_backup_script
+            test_service
             show_summary
             ;;
         2)
             # Install PostgreSQL only
             check_system
-            install_postgresql
-            print_message "$GREEN" "✅ PostgreSQL installed successfully"
+            if check_existing_installation; then
+                install_postgresql
+            fi
+            print_message "$GREEN" "✅ PostgreSQL service installed successfully"
             ;;
         3)
-            # Create database only
-            get_database_config
-            create_database
-            test_connection
-            ;;
-        4)
-            # Install database extensions only
-            read -p "Enter database name: " db_name
-            install_extensions
-            ;;
-        5)
             # Install PHP PostgreSQL extensions
             install_php_extensions
             ;;
-        6)
+        4)
+            # Install PostgreSQL extensions in template
+            install_extensions
+            ;;
+        5)
             # Configure performance
             configure_postgresql
             ;;
+        6)
+            # Test service
+            test_service
+            ;;
         7)
-            # Test connection
-            read -p "Enter database name: " db_name
-            read -p "Enter database user: " db_user
-            read -s -p "Enter database password: " db_pass
-            echo
-            test_connection
-            ;;
-        8)
-            # Create backup script
-            read -p "Enter database name: " db_name
-            read -p "Enter database user: " db_user
-            read -s -p "Enter database password: " db_pass
-            echo
-            create_backup_script
-            ;;
-        9)
             # Uninstall
             uninstall_postgresql
             ;;
@@ -800,29 +598,27 @@ main() {
                 if check_existing_installation; then
                     install_postgresql
                 fi
-                
-                # Use provided credentials or defaults
-                db_name="${2:-$DEFAULT_DB_NAME}"
-                db_user="${3:-$DEFAULT_DB_USER}"
-                db_pass="${4:-$(openssl rand -base64 12)}"
-                
-                create_database
                 install_extensions
+                install_php_extensions
                 configure_postgresql
-                test_connection
-                create_backup_script
+                test_service
                 show_summary
                 ;;
             --install-only)
                 check_system
-                install_postgresql
+                if check_existing_installation; then
+                    install_postgresql
+                fi
+                print_message "$GREEN" "✅ PostgreSQL service installed"
                 ;;
-            --create-db)
-                db_name="${2:-$DEFAULT_DB_NAME}"
-                db_user="${3:-$DEFAULT_DB_USER}"
-                db_pass="${4:-$(openssl rand -base64 12)}"
-                create_database
-                test_connection
+            --install-extensions)
+                install_extensions
+                ;;
+            --configure)
+                configure_postgresql
+                ;;
+            --test)
+                test_service
                 ;;
             --uninstall)
                 uninstall_postgresql
@@ -831,14 +627,19 @@ main() {
                 echo "Usage: $0 [OPTIONS]"
                 echo ""
                 echo "Options:"
-                echo "  --install-php-extensions              Install PHP PostgreSQL extensions"
-                echo "  --install-all [db_name] [db_user] [db_pass]  Complete installation"
-                echo "  --install-only                        Install PostgreSQL only"
-                echo "  --create-db [db_name] [db_user] [db_pass]   Create database only"
+                echo "  --install-all                        Complete installation (PostgreSQL + PHP ext + config)"
+                echo "  --install-only                       Install PostgreSQL service only"
+                echo "  --install-php-extensions             Install PHP PostgreSQL extensions"
+                echo "  --install-extensions                 Install PostgreSQL extensions in template DB"
+                echo "  --configure                          Configure PostgreSQL performance settings"
+                echo "  --test                               Test PostgreSQL service"
                 echo "  --uninstall                          Uninstall PostgreSQL"
                 echo "  --help                               Show this help message"
                 echo ""
-                echo "Interactive mode: Run without arguments"
+                echo "Interactive mode: Run without arguments for menu"
+                echo ""
+                echo "Note: Database creation is handled by restore_postgresql.sh"
+                echo "      based on each domain's config.json file"
                 ;;
             *)
                 print_message "$RED" "❌ Unknown option: $1"
