@@ -68,20 +68,20 @@ show_header() {
 # Backup/Restore menu
 show_menu() {
     clear
-    echo -e "${CYAN}============================================================================="
-    echo "                      Backup & Restore Management"
-    echo -e "=============================================================================${NC}"
-    echo "1. Backup WordPress Sites       ./backup_restore/run.sh backup     # Create backups of WordPress sites and databases"
-    echo "2. Restore WordPress Sites      ./backup_restore/run.sh restore    # Restore WordPress sites from backups"
-    echo "3. Backup Static/HTML Sites     ./backup_restore/run.sh static     # Create backups of non-WordPress websites"
-    echo "4. Restore Static/HTML Sites    ./backup_restore/run.sh staticrestore # Restore non-WordPress websites from backups"
-    echo "5. Backup WordPress + PostgreSQL ./backup_restore/run.sh wppg       # Combined WordPress and PostgreSQL backup"
-    echo "6. Restore WordPress + PostgreSQL ./backup_restore/run.sh wppgrestore # Combined WordPress and PostgreSQL restore"
-    echo "7. Transfer Backups to Server   ./backup_restore/run.sh transfer   # Transfer backups to another server via SSH/SCP"
-    echo "8. Backup PostgreSQL            ./backup_restore/run.sh pgbackup   # Create PostgreSQL database backups"
-    echo "9. Restore PostgreSQL           ./backup_restore/run.sh pgrestore  # Restore PostgreSQL database from backup"
+    echo -e "${CYAN}======================================================================================================="
+    echo "                                     Backup & Restore Management"
+    echo -e "=======================================================================================================${NC}"
+    echo "1. Backup WordPress + PostgreSQL  ./backup_restore/run.sh wppg          # Combined WordPress and PostgreSQL backup"
+    echo "2. Restore WordPress + PostgreSQL ./backup_restore/run.sh wppgrestore   # Combined WordPress and PostgreSQL restore"
+    echo "3. Backup WordPress Sites         ./backup_restore/run.sh backup        # Create backups of WordPress sites and databases"
+    echo "4. Restore WordPress Sites        ./backup_restore/run.sh restore       # Restore WordPress sites from backups"
+    echo "5. Backup Static/HTML Sites       ./backup_restore/run.sh static        # Create backups of non-WordPress websites"
+    echo "6. Restore Static/HTML Sites      ./backup_restore/run.sh staticrestore # Restore non-WordPress websites from backups"
+    echo "7. Transfer Backups to Server     ./backup_restore/run.sh transfer      # Transfer backups to another server via SSH/SCP"
+    echo "8. Backup PostgreSQL              ./backup_restore/run.sh pgbackup      # Create PostgreSQL database backups"
+    echo "9. Restore PostgreSQL             ./backup_restore/run.sh pgrestore     # Restore PostgreSQL database from backup"
     echo "0. Back to Main Menu"
-    echo -e "${CYAN}=============================================================================${NC}"
+    echo -e "${CYAN}=======================================================================================================${NC}"
 }
 
 # Show CLI help
@@ -153,12 +153,12 @@ main() {
         read choice
         
         case $choice in
-            1) execute_script "$SCRIPT_DIR/backup_wordpress.sh" "WordPress Backup" ;;
-            2) execute_script "$SCRIPT_DIR/restore_wordpress.sh" "WordPress Restore" ;;
-            3) execute_script "$SCRIPT_DIR/backup_static_sites.sh" "Static Sites Backup" ;;
-            4) execute_script "$SCRIPT_DIR/restore_static_sites.sh" "Static Sites Restore" ;;
-            5) execute_script "$SCRIPT_DIR/backup_wordpress_postgresql.sh" "WordPress + PostgreSQL Backup" ;;
-            6) execute_script "$SCRIPT_DIR/restore_wordpress_postgresql.sh" "WordPress + PostgreSQL Restore" ;;
+            1) execute_script "$SCRIPT_DIR/backup_wordpress_postgresql.sh" "WordPress + PostgreSQL Backup" ;;
+            2) execute_script "$SCRIPT_DIR/restore_wordpress_postgresql.sh" "WordPress + PostgreSQL Restore" ;;
+            3) execute_script "$SCRIPT_DIR/backup_wordpress.sh" "WordPress Backup" ;;
+            4) execute_script "$SCRIPT_DIR/restore_wordpress.sh" "WordPress Restore" ;;
+            5) execute_script "$SCRIPT_DIR/backup_static_sites.sh" "Static Sites Backup" ;;
+            6) execute_script "$SCRIPT_DIR/restore_static_sites.sh" "Static Sites Restore" ;;
             7) execute_script "$SCRIPT_DIR/transfer_backups.sh" "Transfer Backups to Server" ;;
             8) execute_script "$SCRIPT_DIR/backup_postgresql.sh" "PostgreSQL Backup" ;;
             9) execute_script "$SCRIPT_DIR/restore_postgresql.sh" "PostgreSQL Restore" ;;
