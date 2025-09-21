@@ -155,6 +155,10 @@ EOF
     unset PGPASSWORD
     
     echo "PostgreSQL restoration completed successfully!"
+    
+    # Clean up SQL file after successful restoration
+    echo "Cleaning up SQL backup file..."
+    rm "$sql_file" && echo "SQL backup file deleted: $sql_file" || echo "Warning: Could not delete SQL backup file: $sql_file"
 }
 
 # Main execution flow
