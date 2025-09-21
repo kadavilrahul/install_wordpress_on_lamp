@@ -1,36 +1,76 @@
 # WordPress Master Installation Tool
 
-A comprehensive LAMP stack management system for WordPress hosting with automated installation, backup/restore, and server management capabilities.
+A comprehensive LAMP stack management system for WordPress hosting with automated installation, backup/restore, and server management capabilities. Supports both Linux servers and Windows Subsystem for Linux (WSL) environments.
 
 ## Installation
 
-Clone this repository to your server:
+### Prerequisites
+
+**For Linux Servers:**
+- Ubuntu 18.04+ or Debian 9+
+- Root/sudo access
+- Internet connection
+
+**For WSL (Windows Subsystem for Linux):**
+- Windows 10/11 with WSL2 enabled
+- Ubuntu/Debian distribution installed in WSL
+- Administrator access to Windows (for hosts file modification)
+
+### Setup Steps
 
 1. **Clone the repository**
    ```bash
    git clone https://github.com/kadavilrahul/install_wordpress_on_lamp.git && cd install_wordpress_on_lamp
    ```
 
-2. **Create configuration file** from the sample, edit config.json with your settings
+2. **Create configuration file** from the sample
    ```bash
    cp sample_config.json config.json
+   nano config.json  # Edit with your domains and settings
    ```
 
 3. **Run the tool as root:**
    ```bash
-   bash run.sh
+   sudo bash run.sh
+   
+   # Or force specific environment mode
+   sudo bash run.sh --mode server   # Force server mode
+   sudo bash run.sh --mode wsl      # Force WSL mode
+   sudo bash run.sh --mode auto     # Auto-detect (default)
    ```
+
+4. **For WSL: Update Windows hosts file** (Required for local development)
+   - The script will provide your WSL IP address
+   - Add entries to `C:\Windows\System32\drivers\etc\hosts`
+   - Use the built-in WSL Hosts Helper: `sudo ./main.sh hosts`
 
 ## Features
 
+✅ **Dual Environment Support** - Works on both Linux servers and WSL  
 ✅ **Complete LAMP Stack** - Automated Apache, MySQL, PHP, and WordPress setup  
+✅ **Smart SSL Management** - Let's Encrypt for servers, self-signed certificates for WSL  
+✅ **WSL-Specific Features** - Windows hosts file management and local development tools  
 ✅ **Backup & Restore** - WordPress sites and databases with cloud storage integration  
-✅ **SSL Management** - Automated Let's Encrypt certificates with conflict detection  
 ✅ **CLI & Interactive** - Both command-line and menu-driven interfaces  
 ✅ **Cloud Integration** - Rclone support for Google Drive and other providers  
 ✅ **Performance Tools** - Redis caching, PHP optimization, system monitoring  
 ✅ **Troubleshooting** - Comprehensive diagnostic and repair utilities  
 ✅ **Modular Design** - Organized components with individual CLI support
+
+## Environment-Specific Features
+
+### Linux Server Mode
+- **Production-ready SSL** with Let's Encrypt certificates
+- **Public domain support** with DNS validation
+- **Server monitoring** and maintenance tools
+- **Performance optimization** for production workloads
+
+### WSL Development Mode
+- **Auto-detection** of WSL environment
+- **Self-signed SSL certificates** for local development
+- **Windows hosts file helper** with PowerShell commands
+- **Local domain support** (.local, .dev domains)
+- **WSL IP detection** and networking tools
 
 ## Configuration
 
@@ -51,6 +91,12 @@ Create a `config.json` file based on `sample_config.json`:
   "redis_max_memory": "1"
 }
 ```
+
+### WSL Development Tips
+For WSL development, consider using local domains in your config:
+- Use `.local` or `.dev` domains: `mysite.local`, `wordpress.dev`
+- Use simple passwords since it's local development only
+- Use local email addresses: `dev@localhost.local`
 
 ## Quick Start
 
@@ -142,6 +188,63 @@ sudo bash rclone/run.sh config             # Configure cloud storage
 ./troubleshooting/run.sh menu  # Launch diagnostic tools
 ./troubleshooting/run.sh guide # View database fix guide
 ```
+
+### WSL-Specific Commands
+```bash
+./main.sh hosts                # WSL hosts file helper
+./main.sh --mode wsl lamp       # Force WSL mode for LAMP installation
+./main.sh --mode wsl ssl        # Force WSL mode for SSL setup
+```
+
+## WSL Development Guide
+
+### Windows Hosts File Management
+
+**Automatic Helper Tool:**
+```bash
+sudo ./main.sh hosts
+```
+
+**Manual Setup** - Add to `C:\Windows\System32\drivers\etc\hosts`:
+```
+172.x.x.x mysite.local www.mysite.local
+172.x.x.x wordpress.dev www.wordpress.dev
+```
+
+**PowerShell Method** (Run as Administrator):
+```powershell
+Add-Content -Path C:\Windows\System32\drivers\etc\hosts -Value "`n172.x.x.x mysite.local www.mysite.local"
+```
+
+### SSL Certificates in WSL
+- **Self-signed certificates** are automatically generated for local development
+- **Browser warnings** are normal - click "Advanced" → "Proceed to mysite.local (unsafe)"
+- **Automatic localhost SSL** setup provides alternative access
+
+### Alternative Access Methods
+If you can't modify the hosts file:
+- Direct IP access: `https://172.x.x.x/`
+- Localhost access: `https://localhost/wp/` (if symlink created)
+- HTTP access: `http://172.x.x.x/`
+
+### Environment Mode Control
+
+**Command Line Flags:**
+```bash
+# Force WSL mode (even on regular Linux)
+sudo ./main.sh --mode wsl lamp
+
+# Force server mode (even in WSL)
+sudo ./main.sh --mode server lamp
+
+# Auto-detect (default)
+sudo ./main.sh --mode auto lamp
+```
+
+**Use Cases for Mode Override:**
+- **Testing** - Test WSL functionality on a regular Linux server
+- **Preference** - Use WSL-style setup (self-signed certs) on a server
+- **Override** - When auto-detection fails or gives wrong result
 
 ## Directory Structure
 

@@ -5,6 +5,9 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; CY
 LOG_FILE="/var/log/wordpress_master_$(date +%Y%m%d_%H%M%S).log"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Source WSL functions
+source "$SCRIPT_DIR/wsl/wsl_functions.sh"
+
 # Utility functions
 log() { echo "[$1] $2" | tee -a "$LOG_FILE"; }
 error() { log "ERROR" "$1"; echo -e "${RED}Error: $1${NC}" >&2; exit 1; }
@@ -16,16 +19,46 @@ confirm() { read -p "$(echo -e "${CYAN}$1 [Y/n]: ${NC}")" -n 1 -r; echo; [[ -z "
 # System checks
 check_root() { [[ $EUID -ne 0 ]] && error "This script must be run as root (use sudo)"; }
 
+# Environment initialization
+initialize_environment() {
+    # Check for command line mode override
+    if [[ "$1" == "--mode" ]]; then
+        set_environment_mode "$2"
+        shift 2
+    else
+        # Default to auto-detection
+        set_environment_mode "auto"
+    fi
+    
+    # Initialize environment status
+    if is_wsl_mode; then
+        info "Running in WSL mode"
+        local wsl_ip=$(get_wsl_ip)
+        info "WSL IP: $wsl_ip"
+    else
+        info "Running in Server mode"
+    fi
+}
+
 # Main menu header
 show_header() {
     clear
     echo -e "${CYAN}"
     echo "============================================================================="
-    echo "                    WordPress Master Installation Tool"
-    echo "                   Comprehensive LAMP Stack Management"
+    if is_wsl_mode; then
+        echo "                 WordPress WSL Installation Tool"
+        echo "            Comprehensive LAMP Stack for WSL Environment"
+    else
+        echo "                    WordPress Master Installation Tool"
+        echo "                   Comprehensive LAMP Stack Management"
+    fi
     echo "============================================================================="
     echo -e "${NC}"
     echo -e "${CYAN}Log file: $LOG_FILE${NC}"
+    if is_wsl_mode; then
+        local wsl_ip=$(get_wsl_ip)
+        echo -e "${CYAN}WSL IP: $wsl_ip${NC}"
+    fi
     echo
 }
 
@@ -33,8 +66,14 @@ show_header() {
 show_menu() {
     clear
     echo -e "${CYAN}============================================================================="
-    echo "                    WordPress LAMP Stack Management System"
+    if is_wsl_mode; then
+        echo "                WordPress WSL LAMP Stack Management System"
+    else
+        echo "                    WordPress LAMP Stack Management System"
+    fi
     echo -e "=============================================================================${NC}"
+    show_environment_status
+    echo
     echo "1. Install LAMP Stack + WordPress   ./main.sh lamp         # Complete LAMP installation with WordPress setup"
     echo "2. Backup WordPress Sites           ./main.sh backup       # Create backups of WordPress sites and databases"
     echo "3. Restore WordPress Sites          ./main.sh restore      # Restore WordPress sites from backups"
@@ -59,6 +98,9 @@ show_menu() {
     echo "22. Remove Websites & Databases     ./main.sh remove       # Clean removal of websites and data"
     echo "23. Remove Orphaned Databases       ./main.sh cleanup      # Clean up databases without websites"
     echo "24. Troubleshooting Tools           ./main.sh troubleshoot # Diagnose and fix common issues"
+    if is_wsl_mode; then
+        echo "25. WSL Hosts File Helper           ./main.sh hosts       # Generate Windows hosts file entries"
+    fi
     echo "0. Exit"
     echo -e "${CYAN}=============================================================================${NC}"
 }
@@ -128,9 +170,16 @@ handle_cli_command() {
         "remove") execute_script "$SCRIPT_DIR/wordpress/remove_websites_databases.sh" "Remove Websites & Databases" ;;
         "cleanup") execute_script "$SCRIPT_DIR/wordpress/remove_orphaned_databases.sh" "Remove Orphaned Databases" ;;
         "troubleshoot") execute_script "$SCRIPT_DIR/troubleshooting/troubleshooting_menu.sh" "Troubleshooting Tools" ;;
+        "hosts") 
+            if is_wsl_mode; then
+                execute_script "$SCRIPT_DIR/wsl/wsl_hosts_helper.sh" "WSL Hosts File Helper"
+            else
+                error "WSL Hosts Helper is only available in WSL mode. Use --mode wsl to force WSL mode."
+            fi
+            ;;
         *) 
             echo -e "${RED}Invalid command: $command${NC}"
-            echo -e "${YELLOW}Usage: $0 <command>${NC}"
+            echo -e "${YELLOW}Usage: $0 [--mode server|wsl|auto] <command>${NC}"
             echo -e "${CYAN}Run without arguments to see the interactive menu${NC}"
             exit 1
             ;;
@@ -140,15 +189,26 @@ handle_cli_command() {
 # Main execution
 main() {
     check_root
+    initialize_environment "$@"
     
-    if [ $# -gt 0 ]; then
-        handle_cli_command "$1"
+    # Handle CLI arguments (skip environment flags)
+    local args=("$@")
+    if [[ "$1" == "--mode" ]]; then
+        args=("${args[@]:2}")  # Remove first two arguments
+    fi
+    
+    if [ ${#args[@]} -gt 0 ]; then
+        handle_cli_command "${args[0]}"
         exit $?
     fi
     
     while true; do
         show_menu
-        echo -n "Enter option (0-24): "
+        if is_wsl_mode; then
+            echo -n "Enter option (0-25): "
+        else
+            echo -n "Enter option (0-24): "
+        fi
         read choice
         
         case $choice in
@@ -176,12 +236,24 @@ main() {
             22) execute_script "$SCRIPT_DIR/wordpress/remove_websites_databases.sh" "Remove Websites & Databases" ;;
             23) execute_script "$SCRIPT_DIR/wordpress/remove_orphaned_databases.sh" "Remove Orphaned Databases" ;;
             24) execute_script "$SCRIPT_DIR/troubleshooting/troubleshooting_menu.sh" "Troubleshooting Tools" ;;
+            25) 
+                if is_wsl_mode; then
+                    execute_script "$SCRIPT_DIR/wsl/wsl_hosts_helper.sh" "WSL Hosts File Helper"
+                else
+                    echo -e "${RED}WSL Hosts Helper is only available in WSL mode.${NC}"
+                    sleep 1
+                fi
+                ;;
             0) 
                 echo -e "${GREEN}Thank you for using WordPress Master!${NC}"
                 exit 0 
                 ;;
             *) 
-                echo -e "${RED}Invalid option. Please select 0-24.${NC}"
+                if is_wsl_mode; then
+                    echo -e "${RED}Invalid option. Please select 0-25.${NC}"
+                else
+                    echo -e "${RED}Invalid option. Please select 0-24.${NC}"
+                fi
                 sleep 1
                 ;;
         esac

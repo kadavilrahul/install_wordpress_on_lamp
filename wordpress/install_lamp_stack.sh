@@ -5,6 +5,18 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; CY
 LOG_FILE="/var/log/wordpress_master_$(date +%Y%m%d_%H%M%S).log"
 CONFIG_FILE="$(dirname "${BASH_SOURCE[0]}")/config.sh"
 
+# Get script directory for sourcing WSL functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source WSL functions (will set ENVIRONMENT_MODE if not already set)
+source "$SCRIPT_DIR/../wsl/wsl_functions.sh"
+source "$SCRIPT_DIR/../wsl/wsl_completion.sh"
+
+# Initialize environment if not already done
+if [[ -z "$ENVIRONMENT_MODE" ]]; then
+    set_environment_mode "auto"
+fi
+
 # Utility functions
 log() { echo "[$1] $2" | tee -a "$LOG_FILE"; }
 error() { log "ERROR" "$1"; echo -e "${RED}Error: $1${NC}" >&2; exit 1; }
@@ -733,8 +745,14 @@ install_lamp_wordpress() {
                         setup_tools "/var/www/$MAIN_DOMAIN"
                         save_config
                         success "WordPress installation completed for subdirectory $DOMAIN!"
-                        echo -e "${GREEN}Main Domain: $MAIN_DOMAIN${NC}"
-                        echo -e "${GREEN}Subdirectory: $DOMAIN${NC}"
+                        
+                        if is_wsl_mode; then
+                            local wsl_ip=$(get_wsl_ip)
+                            show_wsl_completion_message "$MAIN_DOMAIN" "$wsl_ip"
+                        else
+                            echo -e "${GREEN}Main Domain: $MAIN_DOMAIN${NC}"
+                            echo -e "${GREEN}Subdirectory: $DOMAIN${NC}"
+                        fi
                         read -p "Press Enter to continue..."
                         return
                     fi
@@ -763,9 +781,15 @@ install_lamp_wordpress() {
     save_config
     
     success "WordPress installation completed!"
-    echo -e "${GREEN}Domain: $DOMAIN${NC}"
-    echo -e "${GREEN}Database: $DB_NAME / $DB_USER / $DB_PASSWORD${NC}"
-    echo -e "${GREEN}Visit: https://$DOMAIN${NC}"
+    
+    if is_wsl_mode; then
+        local wsl_ip=$(get_wsl_ip)
+        show_wsl_completion_message "$DOMAIN" "$wsl_ip"
+    else
+        echo -e "${GREEN}Domain: $DOMAIN${NC}"
+        echo -e "${GREEN}Database: $DB_NAME / $DB_USER / $DB_PASSWORD${NC}"
+        echo -e "${GREEN}Visit: https://$DOMAIN${NC}"
+    fi
     read -p "Press Enter to continue..."
 }
 

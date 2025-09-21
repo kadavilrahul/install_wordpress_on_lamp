@@ -4,6 +4,18 @@
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
 LOG_FILE="/var/log/wordpress_master_$(date +%Y%m%d_%H%M%S).log"
 
+# Get script directory for sourcing WSL functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source WSL functions (will set ENVIRONMENT_MODE if not already set)
+source "$SCRIPT_DIR/../wsl/wsl_functions.sh"
+source "$SCRIPT_DIR/../wsl/wsl_ssl.sh"
+
+# Initialize environment if not already done
+if [[ -z "$ENVIRONMENT_MODE" ]]; then
+    set_environment_mode "auto"
+fi
+
 # Utility functions
 log() { echo "[$1] $2" | tee -a "$LOG_FILE"; }
 error() { log "ERROR" "$1"; echo -e "${RED}Error: $1${NC}" >&2; exit 1; }
@@ -268,17 +280,25 @@ EOT
     
     echo "✅ Domain created: http://$DOMAIN"
     
-    # Check DNS and setup SSL
-    SERVER_IP=$(curl -4 -s ifconfig.me)
-    DOMAIN_IP=$(dig +short A $DOMAIN | head -1)
-    
-    echo ""
-    echo "Checking SSL setup..."
-    echo "Server IP: $SERVER_IP"
-    echo "Domain IP: $DOMAIN_IP"
-    
-    # Advanced SSL setup with conflict detection
-    setup_ssl_with_conflict_detection
+    # Check if we're in WSL and setup appropriate SSL
+    if is_wsl_mode; then
+        local wsl_ip=$(get_wsl_ip)
+        info "WSL environment detected - using self-signed SSL certificates"
+        setup_wsl_ssl "$DOMAIN" "$wsl_ip" "$WEB_ROOT"
+        show_wsl_hosts_info "$DOMAIN" "$wsl_ip"
+    else
+        # Check DNS and setup SSL for regular Linux
+        SERVER_IP=$(curl -4 -s ifconfig.me)
+        DOMAIN_IP=$(dig +short A $DOMAIN | head -1)
+        
+        echo ""
+        echo "Checking SSL setup..."
+        echo "Server IP: $SERVER_IP"
+        echo "Domain IP: $DOMAIN_IP"
+        
+        # Advanced SSL setup with conflict detection
+        setup_ssl_with_conflict_detection
+    fi
     
     echo ""
     echo "========================================="

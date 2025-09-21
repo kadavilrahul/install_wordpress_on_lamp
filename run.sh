@@ -5,6 +5,9 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; CY
 LOG_FILE="/var/log/wordpress_master_$(date +%Y%m%d_%H%M%S).log"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Source WSL functions
+source "$SCRIPT_DIR/wsl/wsl_functions.sh"
+
 # Utility functions
 log() { echo "[$1] $2" | tee -a "$LOG_FILE"; }
 error() { log "ERROR" "$1"; echo -e "${RED}Error: $1${NC}" >&2; exit 1; }
@@ -15,6 +18,31 @@ confirm() { read -p "$(echo -e "${CYAN}$1 [Y/n]: ${NC}")" -n 1 -r; echo; [[ -z "
 
 # System checks
 check_root() { [[ $EUID -ne 0 ]] && error "This script must be run as root (use sudo)"; }
+
+# Environment initialization
+initialize_environment() {
+    # Check for command line mode override
+    local args=("$@")
+    local i=0
+    while [ $i -lt ${#args[@]} ]; do
+        if [[ "${args[i]}" == "--mode" && $((i+1)) < ${#args[@]} ]]; then
+            set_environment_mode "${args[i+1]}"
+            # Remove both --mode and its value from args
+            unset args[i] args[i+1]
+            args=("${args[@]}")  # Re-index array
+            break
+        fi
+        ((i++))
+    done
+    
+    # Default to auto-detection if not set
+    if [[ -z "$ENVIRONMENT_MODE" ]]; then
+        set_environment_mode "auto"
+    fi
+    
+    # Return remaining arguments
+    echo "${args[@]}"
+}
 
 # Function to check service status
 check_service_status() {
@@ -302,10 +330,18 @@ show_header() {
     clear
     echo -e "${CYAN}"
     echo "============================================================================="
-    echo "                    WordPress Master Installation Tool"
-    echo "                   Comprehensive LAMP Stack Management"
+    if is_wsl_mode; then
+        echo "                 WordPress WSL Installation Tool"
+        echo "            Comprehensive LAMP Stack for WSL Environment"
+    else
+        echo "                    WordPress Master Installation Tool"
+        echo "                   Comprehensive LAMP Stack Management"
+    fi
     echo "============================================================================="
     echo -e "${NC}"
+    
+    # Show environment status
+    show_environment_status
     
     # Quick status line
     local apache_status=$(systemctl is-active apache2 2>/dev/null || echo "inactive")
@@ -322,7 +358,11 @@ show_menu() {
     show_system_status
     
     echo ""
-    echo -e "${CYAN}==================== WordPress LAMP Stack Management System =====================${NC}"
+    if is_wsl_mode; then
+        echo -e "${CYAN}==================== WordPress WSL LAMP Stack Management =====================${NC}"
+    else
+        echo -e "${CYAN}==================== WordPress LAMP Stack Management System =====================${NC}"
+    fi
     echo "1. WordPress Management         - Installation and maintenance tools"
     echo "2. New Website Setup            - Install blank website with Apache + SSL"
     echo "3. Backup & Restore             - Backup and restore operations"
@@ -332,6 +372,9 @@ show_menu() {
     echo "7. Rclone (Cloud Storage)       - Cloud backup and storage management"
     echo "8. Redis Cache                  - Caching configuration"
     echo "9. Troubleshooting              - Diagnostic and repair tools"
+    if is_wsl_mode; then
+        echo "10. WSL Hosts File Helper       - Generate Windows hosts file entries"
+    fi
     echo ""
     echo "0. Exit"
     echo -e "${CYAN}=================================================================================${NC}"
@@ -433,6 +476,15 @@ handle_legacy_cli() {
         # Troubleshooting
         "troubleshoot") execute_script "$SCRIPT_DIR/troubleshooting/troubleshooting_menu.sh" "Troubleshooting Tools" ;;
         
+        # WSL-specific
+        "hosts") 
+            if is_wsl_mode; then
+                execute_script "$SCRIPT_DIR/wsl/wsl_hosts_helper.sh" "WSL Hosts File Helper"
+            else
+                error "WSL Hosts Helper is only available in WSL mode. Use --mode wsl to force WSL mode."
+            fi
+            ;;
+        
         *) return 1 ;;
     esac
     
@@ -514,16 +566,35 @@ handle_cli_command() {
                 execute_folder_script "troubleshooting" "Troubleshooting"
             fi
             ;;
+        "wsl"|"hosts")
+            if is_wsl_mode; then
+                if [ -n "$command" ]; then
+                    bash "$SCRIPT_DIR/wsl/wsl_hosts_helper.sh" "$command"
+                else
+                    execute_script "$SCRIPT_DIR/wsl/wsl_hosts_helper.sh" "WSL Hosts File Helper"
+                fi
+            else
+                error "WSL commands are only available in WSL mode. Use --mode wsl to force WSL mode."
+            fi
+            ;;
         *)
             echo -e "${RED}Invalid command: $category${NC}"
             echo -e "${YELLOW}Usage:${NC}"
-            echo "  $0                           - Interactive menu"
+            echo "  $0 [--mode server|wsl|auto]  - Interactive menu with environment mode"
             echo "  $0 <legacy-command>          - Legacy commands (lamp, backup, etc.)"
             echo "  $0 <category>                - Category menu (wordpress, mysql, etc.)"
             echo "  $0 <category> <command>      - Direct command execution"
             echo ""
             echo -e "${CYAN}Categories:${NC}"
             echo "  wordpress, backup, mysql, php, apache, system, rclone, redis, troubleshooting"
+            if is_wsl_mode; then
+                echo "  wsl, hosts (WSL mode only)"
+            fi
+            echo ""
+            echo -e "${CYAN}Environment Modes:${NC}"
+            echo "  --mode auto    - Auto-detect environment (default)"
+            echo "  --mode server  - Force Linux server mode"
+            echo "  --mode wsl     - Force WSL development mode"
             echo ""
             echo -e "${CYAN}Legacy commands still supported for backward compatibility${NC}"
             exit 1
@@ -582,14 +653,21 @@ handle_classic_menu() {
 main() {
     check_root
     
-    if [ $# -gt 0 ]; then
-        handle_cli_command "$@"
+    # Initialize environment and process arguments
+    local remaining_args=($(initialize_environment "$@"))
+    
+    if [ ${#remaining_args[@]} -gt 0 ]; then
+        handle_cli_command "${remaining_args[@]}"
         exit $?
     fi
     
     while true; do
         show_menu
-        echo -n "Enter option (0-9): "
+        if is_wsl_mode; then
+            echo -n "Enter option (0-10): "
+        else
+            echo -n "Enter option (0-9): "
+        fi
         read choice
         
         case $choice in
@@ -602,12 +680,24 @@ main() {
             7) execute_folder_script "rclone" "Cloud Storage" ;;
             8) execute_folder_script "redis" "Redis Cache" ;;
             9) execute_folder_script "troubleshooting" "Troubleshooting" ;;
+            10) 
+                if is_wsl_mode; then
+                    execute_script "$SCRIPT_DIR/wsl/wsl_hosts_helper.sh" "WSL Hosts File Helper"
+                else
+                    echo -e "${RED}WSL Hosts Helper is only available in WSL mode.${NC}"
+                    sleep 1
+                fi
+                ;;
             0) 
                 echo -e "${GREEN}Thank you for using WordPress Master!${NC}"
                 exit 0 
                 ;;
             *) 
-                echo -e "${RED}Invalid option. Please select 0-9.${NC}"
+                if is_wsl_mode; then
+                    echo -e "${RED}Invalid option. Please select 0-10.${NC}"
+                else
+                    echo -e "${RED}Invalid option. Please select 0-9.${NC}"
+                fi
                 sleep 1
                 ;;
         esac
