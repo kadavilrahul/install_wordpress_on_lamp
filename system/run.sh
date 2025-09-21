@@ -74,7 +74,7 @@ show_menu() {
     echo "1. System Status Check        ./system/run.sh status    # View system resources and service status"
     echo "2. Disk Space Monitor         ./system/run.sh disk      # Monitor storage usage and cleanup"
     echo "3. Toggle Root SSH Access     ./system/run.sh ssh       # Enable or disable SSH root login"
-    echo "4. Install System Utilities   ./system/run.sh utils     # Install common system tools"
+    echo "4. Install System Utilities   ./system/run.sh utils     # Install htop, curl, wget, unzip, git, nano, vim"
     echo "0. Back to Main Menu"
     echo -e "${CYAN}=============================================================================${NC}"
 }

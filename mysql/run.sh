@@ -78,7 +78,6 @@ show_menu() {
     echo "5. Get Database Size             ./mysql/run.sh size        # Check storage usage of databases"
     echo "6. Install phpMyAdmin            ./mysql/run.sh phpmyadmin  # Set up web-based MySQL administration"
     echo "7. Enable Auto Log Purging       ./mysql/run.sh purge       # Configure automatic binary log cleanup"
-    echo "8. Remote Access Menu            ./mysql/run.sh menu        # Advanced remote access configuration"
     echo "0. Back to Main Menu"
     echo -e "${CYAN}=============================================================================${NC}"
 }
@@ -97,9 +96,8 @@ show_cli_help() {
     echo "  users       - List MySQL users"
     echo "  size        - Get database size"
     echo "  phpmyadmin  - Install phpMyAdmin"
-    echo "  purge       - Enable auto log purging"
-    echo "  menu        - Remote access menu"
-    echo "  --help      - Show this help"
+  echo "  purge       - Enable auto log purging"
+  echo "  --help      - Show this help"
     echo ""
     echo -e "${CYAN}Examples:${NC}"
     echo "  ./mysql/run.sh remote"
@@ -120,7 +118,7 @@ handle_cli_command() {
         "dbsize"|"size") execute_script "$SCRIPT_DIR/get_database_size.sh" "Get Database Size" ;;
         "phpmyadmin") execute_script "$SCRIPT_DIR/install_phpmyadmin.sh" "Install phpMyAdmin" ;;
         "purge") execute_script "$SCRIPT_DIR/enable_auto_log_purging.sh" "Enable MySQL Log Purging" ;;
-        "menu") execute_script "$SCRIPT_DIR/remote_access_menu.sh" "Remote Access Menu" ;;
+
         "--help"|"-h"|"help") 
             show_cli_help
             exit 0
@@ -144,7 +142,7 @@ main() {
     
     while true; do
         show_menu
-        echo -n "Enter option (0-8): "
+        echo -n "Enter option (0-7): "
         read choice
         
         case $choice in
@@ -155,13 +153,12 @@ main() {
             5) execute_script "$SCRIPT_DIR/get_database_size.sh" "Get Database Size" ;;
             6) execute_script "$SCRIPT_DIR/install_phpmyadmin.sh" "Install phpMyAdmin" ;;
             7) execute_script "$SCRIPT_DIR/enable_auto_log_purging.sh" "Enable MySQL Log Purging" ;;
-            8) execute_script "$SCRIPT_DIR/remote_access_menu.sh" "Remote Access Menu" ;;
             0) 
                 echo -e "${GREEN}Returning to main menu...${NC}"
                 exit 0 
                 ;;
             *) 
-                echo -e "${RED}Invalid option. Please select 0-8.${NC}"
+                echo -e "${RED}Invalid option. Please select 0-7.${NC}"
                 sleep 1
                 ;;
         esac

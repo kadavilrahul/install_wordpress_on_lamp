@@ -200,7 +200,18 @@ show_system_status() {
     local missing_modules=""
     
     for module in "${php_modules[@]}"; do
-        if php -m 2>/dev/null | grep -q "^$module$"; then
+        local is_installed=false
+        case "$module" in
+            "opcache")
+                # OpCache shows as "Zend OPcache" in php -m
+                php -m 2>/dev/null | grep -q "Zend OPcache" && is_installed=true
+                ;;
+            *)
+                php -m 2>/dev/null | grep -q "^$module$" && is_installed=true
+                ;;
+        esac
+        
+        if [ "$is_installed" = true ]; then
             installed_modules="${installed_modules:+$installed_modules, }$module"
         else
             missing_modules="${missing_modules:+$missing_modules, }$module"
@@ -348,7 +359,7 @@ show_classic_menu() {
     echo "14. System Status Check             ./main.sh status"
     echo "15. Disk Space Monitor              ./main.sh disk"
     echo "16. Toggle Root SSH Access          ./main.sh ssh"
-    echo "17. Install System Utilities        ./main.sh utils"
+    echo "17. Install System Utilities        ./main.sh utils        # Install htop, curl, wget, unzip, git, nano, vim"
     echo "18. Install Rclone Package          ./main.sh rclone"
     echo "19. Configure Rclone Remote         ./main.sh config"
     echo "20. Show Rclone Remotes             ./main.sh remotes"

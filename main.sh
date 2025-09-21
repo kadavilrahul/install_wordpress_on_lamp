@@ -52,7 +52,7 @@ show_menu() {
     echo "15. System Status Check             ./main.sh status       # View system resources and service status"
     echo "16. Disk Space Monitor              ./main.sh disk         # Monitor storage usage and cleanup"
     echo "17. Toggle Root SSH Access          ./main.sh ssh          # Enable or disable SSH root login"
-    echo "18. Install System Utilities        ./main.sh utils        # Install common system tools"
+    echo "18. Install System Utilities        ./main.sh utils        # Install htop, curl, wget, unzip, git, nano, vim"
     echo "19. Configure Redis Cache           ./main.sh redis        # Set up Redis caching for performance"
     echo "20. Install Apache + SSL Only       ./main.sh ssl          # Set up web server with SSL certificates"
     echo "21. Fix Apache Configurations       ./main.sh fixapache    # Repair broken Apache virtual host configs"

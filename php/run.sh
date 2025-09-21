@@ -73,6 +73,7 @@ show_menu() {
     echo -e "=============================================================================${NC}"
     echo "1. Adjust PHP Settings     ./php/run.sh adjust      # Optimize PHP configuration for web apps"
     echo "2. View PHP Information    ./php/run.sh info        # Display PHP version and configuration"
+    echo "3. Install Extensions      ./php/run.sh extensions  # Install missing PHP extensions (redis, opcache)"
     echo "0. Back to Main Menu"
     echo -e "${CYAN}=============================================================================${NC}"
 }
@@ -85,13 +86,15 @@ show_cli_help() {
     echo -e "${YELLOW}Usage:${NC} ./php/run.sh <command>"
     echo ""
     echo -e "${GREEN}Available Commands:${NC}"
-    echo "  adjust    - Adjust PHP settings"
-    echo "  info      - View PHP information"
-    echo "  --help    - Show this help"
+    echo "  adjust      - Adjust PHP settings"
+    echo "  info        - View PHP information"
+    echo "  extensions  - Install missing PHP extensions"
+    echo "  --help      - Show this help"
     echo ""
     echo -e "${CYAN}Examples:${NC}"
     echo "  ./php/run.sh adjust"
     echo "  ./php/run.sh info"
+    echo "  ./php/run.sh extensions"
     echo -e "${CYAN}=============================================================================${NC}"
 }
 
@@ -102,6 +105,7 @@ handle_cli_command() {
     case $command in
         "adjust"|"settings") execute_script "$SCRIPT_DIR/adjust_settings.sh" "Adjust PHP Settings" ;;
         "info"|"phpinfo") execute_script "$SCRIPT_DIR/view_info.sh" "View PHP Information" ;;
+        "extensions"|"ext"|"install") execute_script "$SCRIPT_DIR/install_extensions.sh" "Install PHP Extensions" ;;
         "--help"|"-h"|"help") 
             show_cli_help
             exit 0
@@ -125,18 +129,19 @@ main() {
     
     while true; do
         show_menu
-        echo -n "Enter option (0-2): "
+        echo -n "Enter option (0-3): "
         read choice
         
         case $choice in
             1) execute_script "$SCRIPT_DIR/adjust_settings.sh" "Adjust PHP Settings" ;;
             2) execute_script "$SCRIPT_DIR/view_info.sh" "View PHP Information" ;;
+            3) execute_script "$SCRIPT_DIR/install_extensions.sh" "Install PHP Extensions" ;;
             0) 
                 echo -e "${GREEN}Returning to main menu...${NC}"
                 exit 0 
                 ;;
             *) 
-                echo -e "${RED}Invalid option. Please select 0-2.${NC}"
+                echo -e "${RED}Invalid option. Please select 0-3.${NC}"
                 sleep 1
                 ;;
         esac
