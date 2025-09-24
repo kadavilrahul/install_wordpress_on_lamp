@@ -522,9 +522,14 @@ install_wordpress() {
     local site_dir="/var/www/$DOMAIN"
     [ "$INSTALL_TYPE" = "subdirectory" ] && site_dir="/var/www/$MAIN_DOMAIN/$WP_SUBDIR"
     
-    mkdir -p "$site_dir" || error "Failed to create site directory"
-    cd /tmp && wget https://wordpress.org/latest.tar.gz && tar xzf latest.tar.gz && cp -R wordpress/* "$site_dir/" && rm -rf wordpress latest.tar.gz || error "Failed to download WordPress"
-    chown -R www-data:www-data "$site_dir" && chmod -R 755 "$site_dir"
+    mkdir -p "$site_dir"
+    cd /tmp
+    wget https://wordpress.org/latest.tar.gz
+    tar xzf latest.tar.gz
+    cp -R wordpress/* "$site_dir/"
+    rm -rf wordpress latest.tar.gz
+    chown -R www-data:www-data "$site_dir"
+    chmod -R 755 "$site_dir"
     
     # Database setup
     # Generate unique database name based on installation type
@@ -546,7 +551,7 @@ install_wordpress() {
             ;;
     esac
     
-    mysql $MYSQL_AUTH -e "CREATE DATABASE $DB_NAME; CREATE USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD'; CREATE USER '$DB_USER'@'%' IDENTIFIED BY '$DB_PASSWORD'; GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost'; GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'%'; FLUSH PRIVILEGES;" || error "Database creation failed"
+    mysql $MYSQL_AUTH -e "CREATE DATABASE $DB_NAME; CREATE USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD'; CREATE USER '$DB_USER'@'%' IDENTIFIED BY '$DB_PASSWORD'; GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost'; GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'%'; FLUSH PRIVILEGES;"
     
     # Configure WordPress
     cp "$site_dir/wp-config-sample.php" "$site_dir/wp-config.php"
@@ -591,7 +596,8 @@ create_vhost_ssl() {
 </VirtualHost>
 EOF
     
-    a2ensite "$domain.conf" && systemctl reload apache2 || error "Failed to enable site"
+    a2ensite "$domain.conf"
+    systemctl reload apache2
     
     # SSL installation with conflict detection
     if host "$domain" >/dev/null 2>&1; then
@@ -671,7 +677,9 @@ install_ssl_with_conflict_detection() {
 setup_tools() {
     # Install WP-CLI
     if ! command -v wp &>/dev/null; then
-        curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x wp-cli.phar && mv wp-cli.phar /usr/local/bin/wp || error "WP-CLI installation failed"
+        curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+        chmod +x wp-cli.phar
+        mv wp-cli.phar /usr/local/bin/wp
     fi
     
     # Configure Redis

@@ -68,7 +68,7 @@ show_hosts_instructions() {
     echo -e "${YELLOW}2. Run one of these commands:${NC}"
     echo
     echo -e "${GREEN}   PowerShell method:${NC}"
-    echo "   Add-Content -Path C:\\Windows\\System32\\drivers\\etc\\hosts -Value \"`n$wsl_ip $domain www.$domain\""
+    echo "   Add-Content -Path C:\\Windows\\System32\\drivers\\etc\\hosts -Value \"\`n$wsl_ip $domain www.$domain\""
     echo
     echo -e "${GREEN}   Notepad method:${NC}"
     echo "   notepad C:\\Windows\\System32\\drivers\\etc\\hosts"
