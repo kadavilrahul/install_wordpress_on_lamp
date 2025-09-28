@@ -146,7 +146,7 @@ if [ "$RCLONE_AVAILABLE" = true ]; then
     # Add cleanup job (2 hours after backup)
     cleanup_hour=$((backup_hour + 2))
     [ $cleanup_hour -ge 24 ] && cleanup_hour=$((cleanup_hour - 24))
-    new_crons="${new_crons}0 ${cleanup_hour} * * * find $BACKUP_DIR -type f -mtime +7 -exec rm -f {} \\;"
+    new_crons="${new_crons}0 ${cleanup_hour} * * * find $BACKUP_DIR -type f -mtime +3 -exec rm -f {} \\;"
 fi
 
 # Apply the new crontab
@@ -159,7 +159,7 @@ if echo "$new_crons" | crontab -; then
     
     if [ "$RCLONE_AVAILABLE" = true ]; then
         echo "  Rclone upload: $([ $upload_hour -lt 10 ] && echo "0")${upload_hour}:00"
-        echo "  Cleanup: $([ $cleanup_hour -lt 10 ] && echo "0")${cleanup_hour}:00 (files older than 7 days)"
+        echo "  Cleanup: $([ $cleanup_hour -lt 10 ] && echo "0")${cleanup_hour}:00 (files older than 3 days)"
     fi
 else
     echo "Failed to configure cron jobs"
