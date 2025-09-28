@@ -371,24 +371,6 @@ install_lamp() {
     info "Installing LAMP stack..."
     export DEBIAN_FRONTEND=noninteractive
     
-    # Backup Apache configurations before any removal
-    local apache_backup_dir="/tmp/apache_backup_$(date +%Y%m%d_%H%M%S)"
-    if [ -d "/etc/apache2/sites-available" ] && [ "$(ls -A /etc/apache2/sites-available 2>/dev/null)" ]; then
-        info "Backing up existing Apache configurations..."
-        mkdir -p "$apache_backup_dir"
-        cp -r /etc/apache2/sites-available "$apache_backup_dir/" 2>/dev/null || true
-        cp -r /etc/apache2/sites-enabled "$apache_backup_dir/" 2>/dev/null || true
-        
-        # Save list of enabled sites
-        local enabled_sites_file="$apache_backup_dir/enabled_sites.txt"
-        for site in /etc/apache2/sites-enabled/*.conf; do
-            if [ -L "$site" ] && [ -e "$site" ]; then
-                basename "$site" >> "$enabled_sites_file"
-            fi
-        done
-        success "Apache configurations backed up to $apache_backup_dir"
-    fi
-    
     # Clean up any broken installations first
     info "Cleaning up any broken package installations..."
     dpkg --configure -a 2>/dev/null || true
@@ -467,33 +449,6 @@ install_lamp() {
     # Enable Apache modules
     info "Enabling Apache modules..."
     a2enmod rewrite ssl headers 2>/dev/null || warn "Failed to enable some Apache modules"
-    
-    # Restore Apache configurations if they were backed up
-    if [ -n "$apache_backup_dir" ] && [ -d "$apache_backup_dir/sites-available" ]; then
-        info "Restoring Apache configurations..."
-        
-        # Restore sites-available
-        for conf in "$apache_backup_dir/sites-available"/*.conf; do
-            if [ -f "$conf" ]; then
-                local conf_name=$(basename "$conf")
-                if [ ! -f "/etc/apache2/sites-available/$conf_name" ]; then
-                    cp "$conf" "/etc/apache2/sites-available/" 2>/dev/null && info "Restored config: $conf_name"
-                fi
-            fi
-        done
-        
-        # Re-enable previously enabled sites
-        if [ -f "$apache_backup_dir/enabled_sites.txt" ]; then
-            while IFS= read -r site; do
-                if [ -f "/etc/apache2/sites-available/$site" ]; then
-                    a2ensite "$site" 2>/dev/null && info "Re-enabled site: $site"
-                fi
-            done < "$apache_backup_dir/enabled_sites.txt"
-        fi
-        
-        success "Apache configurations restored"
-    fi
-    
     systemctl reload apache2 2>/dev/null || warn "Failed to reload Apache"
     
     # Secure MySQL installation
@@ -622,65 +577,10 @@ EOF
     set_wordpress_permissions "$site_dir"
 }
 
-# Global array to store originally enabled sites
-ORIGINALLY_ENABLED_SITES=()
-
-# Function to save currently enabled sites
-save_enabled_sites() {
-    info "Saving list of currently enabled sites..."
-    ORIGINALLY_ENABLED_SITES=()
-    
-    for site_conf in /etc/apache2/sites-enabled/*.conf; do
-        if [ -L "$site_conf" ] && [ -e "$site_conf" ]; then
-            local site_name=$(basename "$site_conf")
-            ORIGINALLY_ENABLED_SITES+=("$site_name")
-            info "Saved enabled site: $site_name"
-        fi
-    done
-    
-    success "Saved ${#ORIGINALLY_ENABLED_SITES[@]} enabled sites"
-}
-
-# Function to restore originally enabled sites
-restore_enabled_sites() {
-    info "Restoring originally enabled sites..."
-    local restored_count=0
-    local failed_count=0
-    
-    for site in "${ORIGINALLY_ENABLED_SITES[@]}"; do
-        # Check if site config still exists
-        if [ -f "/etc/apache2/sites-available/$site" ]; then
-            # Check if site is not already enabled
-            if [ ! -L "/etc/apache2/sites-enabled/$site" ]; then
-                if a2ensite "$site" 2>/dev/null; then
-                    info "Re-enabled: $site"
-                    ((restored_count++))
-                else
-                    warn "Failed to re-enable: $site"
-                    ((failed_count++))
-                fi
-            else
-                info "Already enabled: $site"
-            fi
-        else
-            warn "Site config not found: $site (may have been removed)"
-        fi
-    done
-    
-    if [ $restored_count -gt 0 ] || [ $failed_count -gt 0 ]; then
-        systemctl reload apache2 2>/dev/null
-    fi
-    
-    success "Site restoration complete: $restored_count restored, $failed_count failed"
-}
-
 # Apache virtual host and SSL with conflict detection
 create_vhost_ssl() {
     local domain="$1"
     local site_dir="$2"
-    
-    # Save currently enabled sites before making any changes
-    save_enabled_sites
     
     cat > "/etc/apache2/sites-available/$domain.conf" << EOF
 <VirtualHost *:80>
@@ -705,9 +605,6 @@ EOF
     else
         warn "Domain $domain does not resolve, skipping SSL"
     fi
-    
-    # Restore all originally enabled sites
-    restore_enabled_sites
 }
 
 # SSL installation with conflict detection
@@ -971,24 +868,6 @@ verify_ssl_installed() {
 recover_failed_installation() {
     warn "Attempting to recover from failed installation..."
     
-    # Backup Apache configurations before recovery
-    local apache_backup_dir="/tmp/apache_recovery_backup_$(date +%Y%m%d_%H%M%S)"
-    if [ -d "/etc/apache2/sites-available" ] && [ "$(ls -A /etc/apache2/sites-available 2>/dev/null)" ]; then
-        info "Backing up Apache configurations before recovery..."
-        mkdir -p "$apache_backup_dir"
-        cp -r /etc/apache2/sites-available "$apache_backup_dir/" 2>/dev/null || true
-        cp -r /etc/apache2/sites-enabled "$apache_backup_dir/" 2>/dev/null || true
-        
-        # Save list of enabled sites
-        local enabled_sites_file="$apache_backup_dir/enabled_sites.txt"
-        for site in /etc/apache2/sites-enabled/*.conf; do
-            if [ -L "$site" ] && [ -e "$site" ]; then
-                basename "$site" >> "$enabled_sites_file"
-            fi
-        done
-        info "Apache configurations backed up to $apache_backup_dir"
-    fi
-    
     # Stop services that might be running
     systemctl stop apache2 mysql redis-server 2>/dev/null || true
     
@@ -1009,8 +888,6 @@ recover_failed_installation() {
     [ -d "/etc/mysql" ] && rm -rf /etc/mysql 2>/dev/null || true
     [ -d "/etc/apache2" ] && rm -rf /etc/apache2 2>/dev/null || true
     [ -d "/var/lib/mysql" ] && rm -rf /var/lib/mysql 2>/dev/null || true
-    
-    # Note: Apache backups will be restored when Apache is reinstalled in install_lamp()
     
     success "System cleaned up. You can now try the installation again."
 }

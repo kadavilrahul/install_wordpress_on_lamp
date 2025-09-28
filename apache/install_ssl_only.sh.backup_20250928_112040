@@ -222,19 +222,6 @@ setup_new_domain() {
     
     echo "Web directory created: $WEB_ROOT"
     
-    # Global array to store originally enabled sites
-    local ORIGINALLY_ENABLED_SITES=()
-    
-    # Save currently enabled sites before making any changes
-    echo "Saving list of currently enabled sites..."
-    for site_conf in /etc/apache2/sites-enabled/*.conf; do
-        if [ -L "$site_conf" ] && [ -e "$site_conf" ]; then
-            local site_name=$(basename "$site_conf")
-            ORIGINALLY_ENABLED_SITES+=("$site_name")
-        fi
-    done
-    echo "Saved ${#ORIGINALLY_ENABLED_SITES[@]} enabled sites"
-    
     # Create sample page
     cat > "$WEB_ROOT/index.html" << EOT
 <!DOCTYPE html>
@@ -322,28 +309,6 @@ EOT
     echo ""
     if [[ "$HTTPS_URL" == "http://"* ]]; then
         echo "Note: SSL failed. Check DNS points to $SERVER_IP"
-    fi
-    
-    # Restore all originally enabled sites to ensure nothing was accidentally left disabled
-    echo ""
-    echo "Ensuring all originally enabled sites are restored..."
-    local restored_count=0
-    for site in "${ORIGINALLY_ENABLED_SITES[@]}"; do
-        # Check if site config still exists
-        if [ -f "/etc/apache2/sites-available/$site" ]; then
-            # Check if site is not already enabled
-            if [ ! -L "/etc/apache2/sites-enabled/$site" ]; then
-                if a2ensite "$site" 2>/dev/null; then
-                    echo "Re-enabled: $site"
-                    ((restored_count++))
-                fi
-            fi
-        fi
-    done
-    
-    if [ $restored_count -gt 0 ]; then
-        systemctl reload apache2 2>/dev/null
-        echo "Restored $restored_count sites"
     fi
     
     read -p "Press Enter to continue..."
