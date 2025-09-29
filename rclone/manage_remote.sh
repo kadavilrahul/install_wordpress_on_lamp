@@ -402,8 +402,8 @@ copy_backups_to_remote() {
     
     if [ -n "$full_dest_path" ]; then
         info "📁 Final destination: $full_dest_path"
-        read -p "Proceed with upload? (y/n): " confirm
-        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then 
+        read -p "Proceed with upload? (Y/n): " confirm
+        if [[ "$confirm" =~ ^[Nn]$ ]]; then 
             info "Copy cancelled."
             return
         fi
