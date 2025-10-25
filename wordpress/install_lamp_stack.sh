@@ -938,7 +938,7 @@ verify_mysql_installed() {
     # Check if MySQL is installed and running
     if command -v mysql &>/dev/null && systemctl is-active --quiet mysql; then
         # Try to connect to MySQL to ensure it's working
-        if mysql -e "SELECT 1;" 2>/dev/null || mysql -u root -p"$DB_ROOT_PASSWORD" -e "SELECT 1;" 2>/dev/null; then
+        if mysql -e "SELECT 1;" &>/dev/null || mysql -u root -p"$DB_ROOT_PASSWORD" -e "SELECT 1;" &>/dev/null; then
             return 0 # MySQL is properly installed and accessible
         fi
     fi
@@ -949,8 +949,8 @@ verify_mysql_installed() {
 verify_php_installed() {
     # Check if PHP is installed and Apache module is loaded
     if command -v php &>/dev/null; then
-        # Check if PHP Apache module exists
-        if [ -f "/etc/apache2/mods-available/php*.load" ] || apache2ctl -M 2>/dev/null | grep -q php; then
+        # Check if PHP Apache module is loaded
+        if apache2ctl -M 2>/dev/null | grep -q php; then
             return 0 # PHP is properly installed with Apache module
         fi
     fi

@@ -100,6 +100,34 @@ For WSL development, consider using local domains in your config:
 
 ## Quick Start
 
+### CLI WordPress Installation (Recommended)
+```bash
+# Install WordPress on a domain (if email/password set in config.json)
+sudo wp-install -d example.com
+
+# Install with all parameters
+sudo wp-install -d example.com -e admin@example.com -p MyPassword123
+
+# Install on subdomain
+sudo wp-install -d blog.example.com
+
+# Install in subdirectory
+sudo wp-install -d example.com/shop
+
+# Skip SSL installation
+sudo wp-install -d example.com -s
+
+# View help
+wp-install -h
+```
+
+**Features:**
+- ✅ Auto-detects and skips already installed LAMP components (Apache, MySQL, PHP)
+- ✅ Supports main domains, subdomains, and subdirectories
+- ✅ Automatic SSL certificate installation with Let's Encrypt
+- ✅ Creates database and configures WordPress automatically
+- ✅ Saves configuration to config.json for future use
+
 ### Interactive Menu
 ```bash
 sudo bash run.sh                    # Main category menu
@@ -110,7 +138,7 @@ sudo bash backup_restore/run.sh     # Backup operations
 ### Direct CLI Commands
 ```bash
 # WordPress operations
-sudo bash wordpress/run.sh install        # Install LAMP + WordPress
+sudo bash wordpress/run.sh install        # Install LAMP + WordPress (interactive)
 sudo bash wordpress/run.sh remove         # Remove sites
 
 # Backup operations  
@@ -140,7 +168,14 @@ sudo bash rclone/run.sh config             # Configure cloud storage
 
 ### WordPress Management
 ```bash
-./wordpress/run.sh install     # Complete LAMP + WordPress installation
+# CLI Installation (Recommended - Fast & Simple)
+wp-install -d example.com                    # Install WordPress on domain
+wp-install -d blog.example.com               # Install on subdomain
+wp-install -d example.com/shop               # Install in subdirectory
+wp-install -d example.com -s                 # Skip SSL installation
+
+# Interactive Installation
+./wordpress/run.sh install     # Complete LAMP + WordPress installation (menu-based)
 ./wordpress/run.sh remove      # Remove websites and databases  
 ./wordpress/run.sh cleanup     # Clean orphaned databases
 ```
