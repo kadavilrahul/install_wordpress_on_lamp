@@ -71,17 +71,18 @@ show_menu() {
     echo -e "${CYAN}======================================================================================================="
     echo "                                     Backup & Restore Management"
     echo -e "=======================================================================================================${NC}"
-    echo "1. Backup WordPress + PostgreSQL  ./backup_restore/run.sh wppg          # Combined WordPress and PostgreSQL backup"
-    echo "2. Restore WordPress + PostgreSQL ./backup_restore/run.sh wppgrestore   # Combined WordPress and PostgreSQL restore"
-    echo "3. Backup WordPress Sites         ./backup_restore/run.sh backup        # Create backups of WordPress sites and databases"
-    echo "4. Restore WordPress Sites        ./backup_restore/run.sh restore       # Restore WordPress sites from backups"
-    echo "5. Backup Static/HTML Sites       ./backup_restore/run.sh static        # Create backups of non-WordPress websites"
-    echo "6. Restore Static/HTML Sites      ./backup_restore/run.sh staticrestore # Restore non-WordPress websites from backups"
-    echo "7. Backup Static + PostgreSQL     ./backup_restore/run.sh staticpg      # Combined static site and PostgreSQL backup"
-    echo "8. Restore Static + PostgreSQL    ./backup_restore/run.sh staticpgrestore # Combined static site and PostgreSQL restore"
-    echo "9. Transfer Backups to Server     ./backup_restore/run.sh transfer      # Transfer backups to another server via SSH/SCP"
-    echo "10. Backup PostgreSQL             ./backup_restore/run.sh pgbackup      # Create PostgreSQL database backups"
-    echo "11. Restore PostgreSQL            ./backup_restore/run.sh pgrestore     # Restore PostgreSQL database from backup"
+    echo "1. Backup All Websites           ./backup_restore/run.sh all           # Backup all sites (WordPress + static)"
+    echo "2. Backup WordPress + PostgreSQL  ./backup_restore/run.sh wppg          # Combined WordPress and PostgreSQL backup"
+    echo "3. Restore WordPress + PostgreSQL ./backup_restore/run.sh wppgrestore   # Combined WordPress and PostgreSQL restore"
+    echo "4. Backup WordPress Sites         ./backup_restore/run.sh backup        # Create backups of WordPress sites and databases"
+    echo "5. Restore WordPress Sites        ./backup_restore/run.sh restore       # Restore WordPress sites from backups"
+    echo "6. Backup Static/HTML Sites       ./backup_restore/run.sh static        # Create backups of non-WordPress websites"
+    echo "7. Restore Static/HTML Sites      ./backup_restore/run.sh staticrestore # Restore non-WordPress websites from backups"
+    echo "8. Backup Static + PostgreSQL     ./backup_restore/run.sh staticpg      # Combined static site and PostgreSQL backup"
+    echo "9. Restore Static + PostgreSQL    ./backup_restore/run.sh staticpgrestore # Combined static site and PostgreSQL restore"
+    echo "10. Transfer Backups to Server    ./backup_restore/run.sh transfer      # Transfer backups to another server via SSH/SCP"
+    echo "11. Backup PostgreSQL             ./backup_restore/run.sh pgbackup      # Create PostgreSQL database backups"
+    echo "12. Restore PostgreSQL            ./backup_restore/run.sh pgrestore     # Restore PostgreSQL database from backup"
     echo "0. Back to Main Menu"
     echo -e "${CYAN}=======================================================================================================${NC}"
 }
@@ -94,6 +95,7 @@ show_cli_help() {
     echo -e "${YELLOW}Usage:${NC} ./backup_restore/run.sh <command>"
     echo ""
     echo -e "${GREEN}Available Commands:${NC}"
+    echo "  all           - Backup all websites (WordPress + static)"
     echo "  backup        - Backup WordPress sites"
     echo "  restore       - Restore WordPress sites"
     echo "  static        - Backup static/HTML sites"
@@ -121,6 +123,7 @@ handle_cli_command() {
     local command="$1"
     
     case $command in
+        "all") execute_script "$SCRIPT_DIR/backup_all_sites.sh" "All Websites Backup" ;;
         "backup") execute_script "$SCRIPT_DIR/backup_wordpress.sh" "WordPress Backup" ;;
         "restore") execute_script "$SCRIPT_DIR/restore_wordpress.sh" "WordPress Restore" ;;
         "static") execute_script "$SCRIPT_DIR/backup_static_sites.sh" "Static Sites Backup" ;;
@@ -155,27 +158,28 @@ main() {
     
     while true; do
         show_menu
-        echo -n "Enter option (0-11): "
+        echo -n "Enter option (0-12): "
         read choice
         
         case $choice in
-            1) execute_script "$SCRIPT_DIR/backup_wordpress_postgresql.sh" "WordPress + PostgreSQL Backup" ;;
-            2) execute_script "$SCRIPT_DIR/restore_wordpress_postgresql.sh" "WordPress + PostgreSQL Restore" ;;
-            3) execute_script "$SCRIPT_DIR/backup_wordpress.sh" "WordPress Backup" ;;
-            4) execute_script "$SCRIPT_DIR/restore_wordpress.sh" "WordPress Restore" ;;
-            5) execute_script "$SCRIPT_DIR/backup_static_sites.sh" "Static Sites Backup" ;;
-            6) execute_script "$SCRIPT_DIR/restore_static_sites.sh" "Static Sites Restore" ;;
-            7) execute_script "$SCRIPT_DIR/backup_static_postgresql.sh" "Static Sites + PostgreSQL Backup" ;;
-            8) execute_script "$SCRIPT_DIR/restore_static_postgresql.sh" "Static Sites + PostgreSQL Restore" ;;
-            9) execute_script "$SCRIPT_DIR/transfer_backups.sh" "Transfer Backups to Server" ;;
-            10) execute_script "$SCRIPT_DIR/backup_postgresql.sh" "PostgreSQL Backup" ;;
-            11) execute_script "$SCRIPT_DIR/restore_postgresql.sh" "PostgreSQL Restore" ;;
+            1) execute_script "$SCRIPT_DIR/backup_all_sites.sh" "All Websites Backup" ;;
+            2) execute_script "$SCRIPT_DIR/backup_wordpress_postgresql.sh" "WordPress + PostgreSQL Backup" ;;
+            3) execute_script "$SCRIPT_DIR/restore_wordpress_postgresql.sh" "WordPress + PostgreSQL Restore" ;;
+            4) execute_script "$SCRIPT_DIR/backup_wordpress.sh" "WordPress Backup" ;;
+            5) execute_script "$SCRIPT_DIR/restore_wordpress.sh" "WordPress Restore" ;;
+            6) execute_script "$SCRIPT_DIR/backup_static_sites.sh" "Static Sites Backup" ;;
+            7) execute_script "$SCRIPT_DIR/restore_static_sites.sh" "Static Sites Restore" ;;
+            8) execute_script "$SCRIPT_DIR/backup_static_postgresql.sh" "Static Sites + PostgreSQL Backup" ;;
+            9) execute_script "$SCRIPT_DIR/restore_static_postgresql.sh" "Static Sites + PostgreSQL Restore" ;;
+            10) execute_script "$SCRIPT_DIR/transfer_backups.sh" "Transfer Backups to Server" ;;
+            11) execute_script "$SCRIPT_DIR/backup_postgresql.sh" "PostgreSQL Backup" ;;
+            12) execute_script "$SCRIPT_DIR/restore_postgresql.sh" "PostgreSQL Restore" ;;
             0) 
                 echo -e "${GREEN}Returning to main menu...${NC}"
                 exit 0 
                 ;;
             *) 
-                echo -e "${RED}Invalid option. Please select 0-11.${NC}"
+                echo -e "${RED}Invalid option. Please select 0-12.${NC}"
                 sleep 1
                 ;;
         esac

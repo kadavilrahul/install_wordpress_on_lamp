@@ -198,6 +198,57 @@ show_system_status() {
         done
     fi
     
+    # Static Websites
+    echo -e "${YELLOW}Static Websites:${NC}"
+    local static_count=0
+    local static_sites=()
+    local static_statuses=()
+    local static_types=()
+    
+    if [ -d "/var/www" ]; then
+        for dir in /var/www/*/; do
+            if [ -d "$dir" ]; then
+                local domain=$(basename "$dir")
+                [ "$domain" = "html" ] && continue
+                
+                # Skip WordPress sites (already displayed above)
+                [ -f "$dir/wp-config.php" ] && continue
+                
+                # Check if it's a static site (has web files)
+                if [ -f "$dir/index.html" ] || [ -f "$dir/index.php" ] || [ -n "$(find "$dir" -maxdepth 2 -name \"*.html\" -o -name \"*.php\" -o -name \"*.css\" -o -name \"*.js\" 2>/dev/null | head -1)" ]; then
+                    static_sites+=("$domain")
+                    static_count=$((static_count + 1))
+                    
+                    # Check if site is accessible
+                    if [ -f "/etc/apache2/sites-enabled/${domain}.conf" ] || [ -f "/etc/apache2/sites-enabled/${domain}-le-ssl.conf" ]; then
+                        static_statuses+=("Active")
+                    else
+                        static_statuses+=("Disabled")
+                    fi
+                    
+                    # Check database type
+                    local db_type=""
+                    if [ -f "$dir/config.json" ] && command -v jq >/dev/null && jq -e '.database' "$dir/config.json" >/dev/null 2>&1; then
+                        db_type="PostgreSQL"
+                    fi
+                    static_types+=("$db_type")
+                fi
+            fi
+        done
+    fi
+    
+    if [ $static_count -eq 0 ]; then
+        echo -e "  No static websites found"
+    else
+        for i in "${!static_sites[@]}"; do
+            local status_color="${GREEN}"
+            [ "${static_statuses[i]}" = "Disabled" ] && status_color="${YELLOW}"
+            local db_info=""
+            [ -n "${static_types[i]}" ] && db_info=" (${static_types[i]})"
+            echo -e "  $((i+1)). ${BLUE}${static_sites[i]}${NC} - ${status_color}${static_statuses[i]}${NC}${db_info}"
+        done
+    fi
+    
     # SSL Certificates
     echo -e "${YELLOW}SSL Certificates:${NC}"
     if command -v certbot >/dev/null 2>&1; then

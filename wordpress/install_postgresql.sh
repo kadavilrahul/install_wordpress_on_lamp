@@ -101,7 +101,7 @@ check_existing_installation() {
         echo "2. Reinstall PostgreSQL (will remove existing data)"
         echo "3. Exit"
         echo ""
-        read -p "Select option [1-3]: " existing_choice
+        read -r -p "Select option [1-3]: " existing_choice
         
         case $existing_choice in
             1)
@@ -520,7 +520,7 @@ show_menu() {
     echo "7. Uninstall PostgreSQL"
     echo "0. Exit"
     echo ""
-    read -p "Select option [0-7]: " choice
+    read -r -p "Select option [0-7]: " choice
     
     case $choice in
         1)

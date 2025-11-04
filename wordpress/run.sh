@@ -81,10 +81,12 @@ show_menu() {
     echo -e "=============================================================================${NC}"
     echo "1. Install WordPress (CLI)           wp-install -d domain.com     # Fast CLI installation (recommended)"
     echo "2. Install LAMP Stack + WordPress    ./wordpress/run.sh install   # Complete LAMP installation with WordPress setup"
-    echo "3. Install PostgreSQL (Full)         ./wordpress/run.sh postgres  # Install PostgreSQL service + PHP extensions"
-    echo "4. Install PostgreSQL PHP Ext Only   ./wordpress/run.sh pg-ext    # Install only PHP PostgreSQL extensions"
-    echo "5. Remove Websites & Databases       ./wordpress/run.sh remove    # Clean removal of websites and data"
-    echo "6. Remove Orphaned Databases         ./wordpress/run.sh cleanup   # Clean up databases without websites"
+    echo "3. Install LAMP Stack Only           ./wordpress/run.sh lamp      # Install only LAMP stack (Apache+MySQL+PHP+Redis)"
+    echo "4. Install WordPress Only            ./wordpress/run.sh wp-only   # Install WordPress on existing LAMP stack"
+    echo "5. Install PostgreSQL (Full)         ./wordpress/run.sh postgres  # Install PostgreSQL service + PHP extensions"
+    echo "6. Install PostgreSQL PHP Ext Only   ./wordpress/run.sh pg-ext    # Install only PHP PostgreSQL extensions"
+    echo "7. Remove Websites & Databases       ./wordpress/run.sh remove    # Clean removal of websites and data"
+    echo "8. Remove Orphaned Databases         ./wordpress/run.sh cleanup   # Clean up databases without websites"
     echo "0. Back to Main Menu"
     echo -e "${CYAN}=============================================================================${NC}"
 }
@@ -99,6 +101,8 @@ show_cli_help() {
     echo -e "${GREEN}Available Commands:${NC}"
     echo "  cli       - Install WordPress via CLI (fast, recommended)"
     echo "  install   - Install LAMP Stack + WordPress (interactive)"
+    echo "  lamp      - Install only LAMP stack (Apache+MySQL+PHP+Redis)"
+    echo "  wp-only   - Install WordPress on existing LAMP stack"
     echo "  postgres  - Install PostgreSQL service + PHP extensions (full)"
     echo "  pg-ext    - Install only PHP PostgreSQL extensions"
     echo "  remove    - Remove websites & databases"
@@ -111,6 +115,8 @@ show_cli_help() {
     echo "  wp-install -d example.com/shop                # Install in subdirectory"
     echo "  ./wordpress/run.sh cli                        # Launch CLI installer help"
     echo "  ./wordpress/run.sh install                    # Interactive installation"
+    echo "  ./wordpress/run.sh lamp                       # Install LAMP stack only"
+    echo "  ./wordpress/run.sh wp-only                    # Install WordPress only"
     echo "  ./wordpress/run.sh postgres"
     echo "  ./wordpress/run.sh pg-ext"
     echo "  ./wordpress/run.sh remove"
@@ -155,7 +161,7 @@ main() {
     
     while true; do
         show_menu
-        echo -n "Enter option (0-6): "
+        echo -n "Enter option (0-8): "
         read choice
         
         case $choice in
@@ -163,17 +169,19 @@ main() {
                 bash "$SCRIPT_DIR/install_wordpress_cli.sh" -h
                 read -p "Press Enter to continue..."
                 ;;
-            2) execute_script "$SCRIPT_DIR/install_lamp_stack.sh" "LAMP Stack + WordPress Installation" ;;
-            3) execute_script "$SCRIPT_DIR/install_postgresql.sh" "PostgreSQL Full Installation" "--install-all" ;;
-            4) execute_script "$SCRIPT_DIR/install_postgresql.sh" "PHP PostgreSQL Extensions Installation" "--install-php-extensions" ;;
-            5) execute_script "$SCRIPT_DIR/remove_websites_databases.sh" "Remove Websites & Databases" ;;
-            6) execute_script "$SCRIPT_DIR/remove_orphaned_databases.sh" "Remove Orphaned Databases" ;;
+             2) execute_script "$SCRIPT_DIR/install_lamp_stack.sh" "LAMP Stack + WordPress Installation" ;;
+             3) execute_script "$SCRIPT_DIR/install_lamp_only.sh" "LAMP Stack Only Installation" ;;
+             4) execute_script "$SCRIPT_DIR/install_wordpress_only.sh" "WordPress Only Installation" ;;
+             5) execute_script "$SCRIPT_DIR/install_postgresql.sh" "PostgreSQL Full Installation" "--install-all" ;;
+             6) execute_script "$SCRIPT_DIR/install_postgresql.sh" "PHP PostgreSQL Extensions Installation" "--install-php-extensions" ;;
+             7) execute_script "$SCRIPT_DIR/remove_websites_databases.sh" "Remove Websites & Databases" ;;
+             8) execute_script "$SCRIPT_DIR/remove_orphaned_databases.sh" "Remove Orphaned Databases" ;;
             0) 
                 echo -e "${GREEN}Returning to main menu...${NC}"
                 exit 0 
                 ;;
             *) 
-                echo -e "${RED}Invalid option. Please select 0-6.${NC}"
+                echo -e "${RED}Invalid option. Please select 0-8.${NC}"
                 sleep 1
                 ;;
         esac

@@ -2,7 +2,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPT_DIR")"
-BACKUP_SCRIPT="$BASE_DIR/backup_restore/backup_wordpress_postgresql.sh"
+BACKUP_SCRIPT="$BASE_DIR/backup_restore/backup_all_sites.sh"
 BACKUP_DIR="/website_backups"
 RCLONE_LOG="/var/log/rclone.log"
 CONFIG_FILE="$BASE_DIR/config.json"
@@ -26,8 +26,22 @@ if [ -f "$CONFIG_FILE" ] && command -v jq >/dev/null; then
         [ -d "$site_dir" ] || continue
         site_name=$(basename "$site_dir")
         [ "$site_name" = "html" ] && continue
+        
+        # Try to get backup path from config
         backup_path=$(jq -r ".backup_locations[\"$site_name\"] // empty" "$CONFIG_FILE" 2>/dev/null)
-        [ -n "$backup_path" ] && sites+=("$site_name:$backup_path")
+        
+        # If no specific backup path, use default based on domain
+        if [ -z "$backup_path" ]; then
+            # For subdomains, use parent domain's backup location or create default
+            if [[ "$site_name" == *"."* ]]; then
+                parent_domain=$(echo "$site_name" | cut -d'.' -f2-)
+                backup_path=$(jq -r ".backup_locations[\"$parent_domain\"] // \"backup_$site_name\"" "$CONFIG_FILE" 2>/dev/null)
+            else
+                backup_path="backup_$site_name"
+            fi
+        fi
+        
+        sites+=("$site_name:$backup_path")
     done
 fi
 
@@ -45,7 +59,7 @@ fi
 echo
 echo "Options:"
 echo "1) Setup daily backup (3 AM) - First site only"
-echo "2) Setup daily backup (3 AM) - All sites"
+echo "2) Setup daily backup (3 AM) - All sites (WordPress + static)"
 echo "3) Setup hourly backup - Specific site"
 echo "4) View current backup cron jobs"
 echo "5) Remove all backup cron jobs"
@@ -62,7 +76,7 @@ case $choice in
     2) 
         backup_cmd="/bin/bash $BACKUP_SCRIPT --all"
         schedule="0 3 * * *"
-        desc="Daily at 3:00 AM - All sites"
+        desc="Daily at 3:00 AM - All sites (WordPress + static)"
         ;;
     3)
         read -p "Enter domain name (e.g., example.com): " domain
@@ -78,7 +92,7 @@ case $choice in
         echo
         echo "Current backup-related cron jobs:"
         echo "---------------------------------"
-        crontab -l 2>/dev/null | grep -E "(backup_wordpress_postgresql|backup_wordpress|backup_postgresql)" || echo "No backup cron jobs found"
+        crontab -l 2>/dev/null | grep -E "(backup_all_sites|backup_wordpress_postgresql|backup_wordpress|backup_postgresql)" || echo "No backup cron jobs found"
         echo
         echo "Cron schedule format: MIN HOUR DAY MONTH WEEKDAY"
         echo "  0 3 * * *    = Daily at 3:00 AM"
@@ -89,11 +103,11 @@ case $choice in
     5) 
         echo
         echo "Current backup cron jobs:"
-        crontab -l 2>/dev/null | grep -E "(backup_wordpress_postgresql|backup_wordpress|backup_postgresql|rclone.*$BACKUP_DIR|find $BACKUP_DIR)" || echo "None found"
+        crontab -l 2>/dev/null | grep -E "(backup_all_sites|backup_wordpress_postgresql|backup_wordpress|backup_postgresql|rclone.*$BACKUP_DIR)" || echo "None found"
         echo
         read -p "Remove all backup cron jobs? (y/N): " confirm
         if [[ "$confirm" =~ ^[yY]$ ]]; then
-            current_crons=$(crontab -l 2>/dev/null | grep -v "backup_wordpress_postgresql" | grep -v "backup_wordpress.sh" | grep -v "backup_postgresql.sh" | grep -v "rclone.*$BACKUP_DIR" | grep -v "find $BACKUP_DIR")
+            current_crons=$(crontab -l 2>/dev/null | grep -v "backup_all_sites" | grep -v "backup_wordpress_postgresql" | grep -v "backup_wordpress.sh" | grep -v "backup_postgresql.sh" | grep -v "rclone.*$BACKUP_DIR")
             echo "$current_crons" | crontab - && echo "✓ All backup cron jobs removed" || echo "Failed to remove cron jobs"
         else
             echo "Operation cancelled"
@@ -111,7 +125,7 @@ case $choice in
 esac
 
 # Remove existing cron jobs for this backup command
-current_crons=$(crontab -l 2>/dev/null | grep -v "$(echo "$backup_cmd" | sed 's/[[\.*^$()+?{|]/\\&/g')" | grep -v "rclone.*$BACKUP_DIR.*$(echo "${domain:-}" | sed 's/[[\.*^$()+?{|]/\\&/g')" | grep -v "find $BACKUP_DIR")
+current_crons=$(crontab -l 2>/dev/null | grep -v "$(echo "$backup_cmd" | sed 's/[[\.*^$()+?{|]/\\&/g')" | grep -v "rclone.*$BACKUP_DIR.*$(echo "${domain:-}" | sed 's/[[\.*^$()+?{|]/\\&/g')")
 
 # Start building new cron jobs
 new_crons="$current_crons"
@@ -121,33 +135,28 @@ new_crons="$current_crons"
 log_file="/var/log/backup_$(date +%Y%m%d).log"
 new_crons="${new_crons}${schedule} $backup_cmd >> $log_file 2>&1"$'\n'
 
-# Add rclone upload if available
-if [ "$RCLONE_AVAILABLE" = true ]; then
-    # Calculate upload time (1 hour after backup)
-    backup_hour=$(echo "$schedule" | cut -d' ' -f2)
-    upload_hour=$((backup_hour + 1))
-    [ $upload_hour -ge 24 ] && upload_hour=$((upload_hour - 24))
-    
-    if [ ${#sites[@]} -gt 0 ]; then
-        for site_info in "${sites[@]}"; do
-            website=$(echo "$site_info" | cut -d: -f1)
-            backup_path=$(echo "$site_info" | cut -d: -f2)
-            
-            # Only add rclone for the specific site if doing site-specific backup
-            if [[ -n "${domain:-}" && "$website" == "$domain" ]] || [[ -z "${domain:-}" ]]; then
-                new_crons="${new_crons}0 ${upload_hour} * * * /usr/bin/rclone copy $BACKUP_DIR ${remote}:${backup_path} --include=\"*${website}*\" --log-file=$RCLONE_LOG"$'\n'
-            fi
-        done
-    else
-        # Generic rclone upload for all backups
-        new_crons="${new_crons}0 ${upload_hour} * * * /usr/bin/rclone copy $BACKUP_DIR ${remote}: --log-file=$RCLONE_LOG"$'\n'
+    # Add rclone upload if available
+    if [ "$RCLONE_AVAILABLE" = true ]; then
+        # Calculate upload time (1 hour after backup)
+        backup_hour=$(echo "$schedule" | cut -d' ' -f2)
+        upload_hour=$((backup_hour + 1))
+        [ $upload_hour -ge 24 ] && upload_hour=$((upload_hour - 24))
+        
+        if [ ${#sites[@]} -gt 0 ]; then
+            for site_info in "${sites[@]}"; do
+                website=$(echo "$site_info" | cut -d: -f1)
+                backup_path=$(echo "$site_info" | cut -d: -f2)
+                
+                # Only add rclone for the specific site if doing site-specific backup
+                if [[ -n "${domain:-}" && "$website" == "$domain" ]] || [[ -z "${domain:-}" ]]; then
+                    new_crons="${new_crons}0 ${upload_hour} * * * /usr/bin/rclone copy $BACKUP_DIR ${remote}:${backup_path} --include=\"*${website}*\" --log-file=$RCLONE_LOG && find $BACKUP_DIR -name \"*${website}*\" -type f -exec rm -f {} \\;"$'\n'
+                fi
+            done
+        else
+            # Generic rclone upload for all backups
+            new_crons="${new_crons}0 ${upload_hour} * * * /usr/bin/rclone copy $BACKUP_DIR ${remote}: --log-file=$RCLONE_LOG && find $BACKUP_DIR -type f -exec rm -f {} \\;"$'\n'
+        fi
     fi
-    
-    # Add cleanup job (2 hours after backup)
-    cleanup_hour=$((backup_hour + 2))
-    [ $cleanup_hour -ge 24 ] && cleanup_hour=$((cleanup_hour - 24))
-    new_crons="${new_crons}0 ${cleanup_hour} * * * find $BACKUP_DIR -type f -mtime +3 -exec rm -f {} \\;"
-fi
 
 # Apply the new crontab
 if echo "$new_crons" | crontab -; then
@@ -159,7 +168,7 @@ if echo "$new_crons" | crontab -; then
     
     if [ "$RCLONE_AVAILABLE" = true ]; then
         echo "  Rclone upload: $([ $upload_hour -lt 10 ] && echo "0")${upload_hour}:00"
-        echo "  Cleanup: $([ $cleanup_hour -lt 10 ] && echo "0")${cleanup_hour}:00 (files older than 3 days)"
+        echo "  Local cleanup: Immediately after successful remote upload"
     fi
 else
     echo "Failed to configure cron jobs"

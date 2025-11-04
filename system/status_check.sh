@@ -32,14 +32,75 @@ system_status_check() {
     echo "-----------------------------------------------"
     echo
     echo -e "${CYAN}=== Service Status ===${NC}"
-    for service in apache2 mysql redis-server; do
+    for service in apache2 mysql postgresql redis-server; do
         systemctl is-active --quiet "$service" && echo -e "$service: ${GREEN}Running${NC}" || echo -e "$service: ${RED}Stopped${NC}"
     done
     echo
-    echo -e "${CYAN}=== WordPress Sites ===${NC}"
+    
+    # Database Status
+    echo -e "${CYAN}=== Database Status ===${NC}"
+    # MySQL databases
+    mysql_databases=$(mysql -e "SHOW DATABASES;" 2>/dev/null | grep -v "^Database$" | grep -v "^information_schema$" | grep -v "^performance_schema$" | grep -v "^mysql$" | wc -l 2>/dev/null || echo "0")
+    echo -e "MySQL: ${GREEN}Running${NC} | ${mysql_databases} databases"
+    
+    # PostgreSQL databases
+    if systemctl is-active --quiet postgresql; then
+        postgres_databases=$(sudo -u postgres psql -lqt 2>/dev/null | cut -d \| -f 1 | grep -v "^\s*$" | grep -v "^\s*template" | grep -v "^\s*postgres$" | wc -l)
+        postgres_db_list=$(sudo -u postgres psql -lqt 2>/dev/null | cut -d \| -f 1 | grep -v "^\s*$" | grep -v "^\s*template" | grep -v "^\s*postgres$" | tr '\n' ',' | sed 's/,$//')
+        echo -e "PostgreSQL: ${GREEN}Running${NC} | ${postgres_databases} databases (${postgres_db_list})"
+    else
+        echo -e "PostgreSQL: ${RED}Stopped${NC}"
+    fi
+    echo
+    echo -e "${CYAN}=== Website Status ===${NC}"
+    
+    # WordPress Websites
+    echo -e "${YELLOW}WordPress Websites:${NC}"
+    local wp_count=0
     [ -d "/var/www" ] && for site in /var/www/*; do
-        [ -d "$site" ] && [ -f "$site/wp-config.php" ] && echo -e "WordPress: ${GREEN}$(basename "$site")${NC}"
+        if [ -d "$site" ] && [ -f "$site/wp-config.php" ]; then
+            local domain=$(basename "$site")
+            [ "$domain" = "html" ] && continue
+            
+            # Check SSL status
+            local ssl_status=""
+            if apache2ctl -S 2>/dev/null | grep -q "$domain.*443"; then
+                ssl_status=" - SSL"
+            fi
+            
+            echo -e "  $((++wp_count)). $domain - ${GREEN}Active${NC} (MySQL)${ssl_status}"
+        fi
     done
+    [ $wp_count -eq 0 ] && echo "  No WordPress websites found"
+    
+    # Static Websites
+    echo -e "${YELLOW}Static Websites:${NC}"
+    local static_count=0
+    [ -d "/var/www" ] && for site in /var/www/*; do
+        if [ -d "$site" ]; then
+            local domain=$(basename "$site")
+            [ "$domain" = "html" ] && continue
+            [ -f "$site/wp-config.php" ] && continue
+            
+            # Check if it's a static site
+            if [ -f "$site/index.html" ] || [ -f "$site/index.php" ] || [ -n "$(find "$site" -maxdepth 2 -name \"*.html\" -o -name \"*.php\" -o -name \"*.css\" -o -name \"*.js\" 2>/dev/null | head -1)" ]; then
+                local db_type=""
+                if [ -f "$site/config.json" ] && command -v jq >/dev/null && jq -e '.database' "$site/config.json" >/dev/null 2>&1; then
+                    db_type="PostgreSQL"
+                fi
+                
+                # Check SSL status
+                local ssl_status=""
+                if apache2ctl -S 2>/dev/null | grep -q "$domain.*443"; then
+                    ssl_status=" - SSL"
+                fi
+                
+                echo -e "  $((++static_count)). $domain - ${GREEN}Active${NC}${db_type:+ ($db_type)}${ssl_status}"
+            fi
+        fi
+    done
+    [ $static_count -eq 0 ] && echo "  No static websites found"
+    
     read -p "Press Enter to continue..."
 }
 
