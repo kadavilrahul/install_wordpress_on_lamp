@@ -46,7 +46,7 @@ is_static_site() {
 backup_site() {
     local site_path="$1"
     local site_name="$2"
-    local backup_name="${site_name}_static_backup_${TIMESTAMP}.tar.gz"
+    local backup_name="${site_name}_backup_${TIMESTAMP}.tar.gz"
     
     echo "Backing up static site: $site_name"
     
@@ -158,7 +158,7 @@ main() {
     esac
     
     # Clean old backups (keep last 7 days)
-    find "$BACKUP_DIR" -name "*_static_backup_*.tar.gz" -mtime +7 -delete 2>/dev/null
+    find "$BACKUP_DIR" -name "*_backup_*.tar.gz" -mtime +7 -delete 2>/dev/null
     echo "Backup completed"
 }
 

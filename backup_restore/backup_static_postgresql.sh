@@ -210,7 +210,7 @@ backup_single_database() {
 # Function to backup static site files
 backup_static_files() {
     local site_path="$WWW_PATH/$SELECTED_DOMAIN"
-    local backup_name="${SELECTED_DOMAIN}_static_postgres_backup_${TIMESTAMP}.tar.gz"
+    local backup_name="${SELECTED_DOMAIN}_backup_${TIMESTAMP}.tar.gz"
     
     [[ "$NON_INTERACTIVE" != "true" ]] && echo "Creating static site backup for: $SELECTED_DOMAIN"
     
