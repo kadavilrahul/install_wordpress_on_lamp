@@ -32,8 +32,8 @@ show_header() {
     clear
     echo -e "${CYAN}"
     echo "============================================================================="
-    echo "                    WordPress Master Installation Tool"
-    echo "                   Comprehensive LAMP Stack Management"
+    echo "                         SSL Management Tool"
+    echo "              Install, Enable, and Disable SSL Certificates"
     echo "============================================================================="
     echo -e "${NC}"
     echo -e "${CYAN}Log file: $LOG_FILE${NC}"
@@ -109,11 +109,38 @@ save_config() {
 
 install_apache_ssl_only() {
     show_header
-    echo -e "${YELLOW}Apache + SSL Only Installation${NC}"
-    echo "This will install Apache web server with SSL support for a new domain."
+    echo -e "${YELLOW}SSL Management${NC}"
+    echo "Manage SSL certificates for your domains."
     echo
     
-    setup_new_domain
+    ssl_management_menu
+}
+
+# SSL Management Menu
+ssl_management_menu() {
+    while true; do
+        clear
+        show_header
+        echo -e "${YELLOW}SSL Management Options:${NC}"
+        echo ""
+        echo "1) Install SSL for new domain"
+        echo "2) Enable SSL for existing website"
+        echo "3) Disable SSL for existing website"
+        echo "0) Back to main menu"
+        echo ""
+        read -p "Select option (0-3): " choice
+        
+        case $choice in
+            1) setup_new_domain ;;
+            2) enable_ssl_for_existing_site ;;
+            3) disable_ssl_for_existing_site ;;
+            0) return ;;
+            *) 
+                echo -e "${RED}Invalid option. Please select 0-3.${NC}"
+                sleep 2
+                ;;
+        esac
+    done
 }
 
 
@@ -346,6 +373,243 @@ EOT
         echo "Restored $restored_count sites"
     fi
     
+    read -p "Press Enter to continue..."
+}
+
+# Enable SSL for existing website
+enable_ssl_for_existing_site() {
+    echo ""
+    echo -e "${YELLOW}Enable SSL for Existing Website${NC}"
+    echo ""
+    
+    # Get list of available sites (non-SSL)
+    local available_sites=()
+    local site_counter=1
+    
+    echo "Available websites (without SSL):"
+    echo ""
+    
+    for site in /etc/apache2/sites-available/*.conf; do
+        if [ -f "$site" ]; then
+            local site_name=$(basename "$site")
+            # Skip SSL sites and default sites
+            if [[ ! "$site_name" =~ -le-ssl\.conf$ ]] && [[ "$site_name" != "000-default.conf" ]] && [[ "$site_name" != "default-ssl.conf" ]]; then
+                local domain_name=$(echo "$site_name" | sed 's/\.conf$//')
+                
+                # Check if SSL already exists for this domain
+                if [ ! -f "/etc/apache2/sites-available/${domain_name}-le-ssl.conf" ] && [ ! -d "/etc/letsencrypt/live/${domain_name}" ]; then
+                    echo "   $site_counter) $domain_name"
+                    available_sites[$site_counter]="$domain_name"
+                    ((site_counter++))
+                fi
+            fi
+        fi
+    done
+    
+    if [ ${#available_sites[@]} -eq 0 ]; then
+        echo "No websites found without SSL certificates."
+        echo ""
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo ""
+    read -p "Select website number to enable SSL (or 0 to cancel): " selection
+    
+    if [ "$selection" = "0" ]; then
+        return
+    fi
+    
+    if [ -z "${available_sites[$selection]}" ]; then
+        echo -e "${RED}Invalid selection!${NC}"
+        sleep 2
+        return
+    fi
+    
+    DOMAIN="${available_sites[$selection]}"
+    echo ""
+    echo "Enabling SSL for: $DOMAIN"
+    echo ""
+    
+    # Load admin email from config
+    load_config
+    if [ -z "$ADMIN_EMAIL" ]; then
+        read -p "Enter admin email for SSL certificate: " ADMIN_EMAIL
+        save_config
+    else
+        echo "Using admin email from config: $ADMIN_EMAIL"
+    fi
+    
+    # Determine web root
+    if [[ "$DOMAIN" == *"/"* ]]; then
+        BASE_DOMAIN=$(echo "$DOMAIN" | cut -d'/' -f1)
+        SUBDIRECTORY=$(echo "$DOMAIN" | cut -d'/' -f2-)
+        WEB_ROOT="/var/www/$BASE_DOMAIN/$SUBDIRECTORY"
+    else
+        WEB_ROOT="/var/www/$DOMAIN"
+    fi
+    
+    # Check if we're in WSL
+    if is_wsl_mode; then
+        local wsl_ip=$(get_wsl_ip)
+        info "WSL environment detected - using self-signed SSL certificates"
+        setup_wsl_ssl "$DOMAIN" "$wsl_ip" "$WEB_ROOT"
+        show_wsl_hosts_info "$DOMAIN" "$wsl_ip"
+    else
+        # Check DNS for regular Linux
+        SERVER_IP=$(curl -4 -s ifconfig.me)
+        DOMAIN_IP=$(dig +short A $DOMAIN | head -1)
+        
+        echo "Checking DNS configuration..."
+        echo "Server IP: $SERVER_IP"
+        echo "Domain IP: $DOMAIN_IP"
+        echo ""
+        
+        if [ "$SERVER_IP" != "$DOMAIN_IP" ]; then
+            warn "DNS mismatch! Domain IP ($DOMAIN_IP) does not match Server IP ($SERVER_IP)"
+            if ! confirm "Continue with SSL installation anyway?"; then
+                return
+            fi
+        fi
+        
+        # Save enabled sites and setup SSL
+        local ORIGINALLY_ENABLED_SITES=()
+        for site_conf in /etc/apache2/sites-enabled/*.conf; do
+            if [ -L "$site_conf" ] && [ -e "$site_conf" ]; then
+                local site_name=$(basename "$site_conf")
+                ORIGINALLY_ENABLED_SITES+=("$site_name")
+            fi
+        done
+        
+        # Setup SSL
+        setup_ssl_with_conflict_detection
+        
+        # Restore sites
+        for site in "${ORIGINALLY_ENABLED_SITES[@]}"; do
+            if [ -f "/etc/apache2/sites-available/$site" ]; then
+                if [ ! -L "/etc/apache2/sites-enabled/$site" ]; then
+                    a2ensite "$site" 2>/dev/null
+                fi
+            fi
+        done
+        systemctl reload apache2 2>/dev/null
+    fi
+    
+    echo ""
+    success "SSL setup completed for $DOMAIN"
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Disable SSL for existing website
+disable_ssl_for_existing_site() {
+    echo ""
+    echo -e "${YELLOW}Disable SSL for Existing Website${NC}"
+    echo ""
+    
+    # Get list of sites with SSL
+    local ssl_sites=()
+    local site_counter=1
+    
+    echo "Websites with SSL enabled:"
+    echo ""
+    
+    for site in /etc/apache2/sites-available/*-le-ssl.conf; do
+        if [ -f "$site" ]; then
+            local site_name=$(basename "$site")
+            local domain_name=$(echo "$site_name" | sed 's/-le-ssl\.conf$//')
+            
+            echo "   $site_counter) $domain_name"
+            ssl_sites[$site_counter]="$domain_name"
+            ((site_counter++))
+        fi
+    done
+    
+    # Also check for sites with SSL certificates but different naming
+    for cert_dir in /etc/letsencrypt/live/*; do
+        if [ -d "$cert_dir" ]; then
+            local domain_name=$(basename "$cert_dir")
+            # Check if already in list
+            local found=false
+            for existing in "${ssl_sites[@]}"; do
+                if [ "$existing" = "$domain_name" ]; then
+                    found=true
+                    break
+                fi
+            done
+            
+            if [ "$found" = false ] && [ "$domain_name" != "README" ]; then
+                echo "   $site_counter) $domain_name"
+                ssl_sites[$site_counter]="$domain_name"
+                ((site_counter++))
+            fi
+        fi
+    done
+    
+    if [ ${#ssl_sites[@]} -eq 0 ]; then
+        echo "No websites found with SSL certificates."
+        echo ""
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo ""
+    read -p "Select website number to disable SSL (or 0 to cancel): " selection
+    
+    if [ "$selection" = "0" ]; then
+        return
+    fi
+    
+    if [ -z "${ssl_sites[$selection]}" ]; then
+        echo -e "${RED}Invalid selection!${NC}"
+        sleep 2
+        return
+    fi
+    
+    DOMAIN="${ssl_sites[$selection]}"
+    echo ""
+    echo -e "${RED}WARNING: This will disable SSL for: $DOMAIN${NC}"
+    echo "The website will only be accessible via HTTP (not secure)."
+    echo ""
+    
+    if ! confirm "Are you sure you want to disable SSL?"; then
+        return
+    fi
+    
+    # Disable SSL site configuration
+    if [ -f "/etc/apache2/sites-enabled/${DOMAIN}-le-ssl.conf" ]; then
+        info "Disabling SSL site configuration..."
+        a2dissite "${DOMAIN}-le-ssl.conf" 2>/dev/null
+    fi
+    
+    # Remove SSL virtual host file (optional, keeping for potential re-enable)
+    if confirm "Do you want to remove the SSL certificate files? (This cannot be easily undone)"; then
+        if [ -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
+            info "Removing SSL certificates..."
+            certbot delete --cert-name "$DOMAIN" --non-interactive 2>/dev/null || true
+        fi
+        
+        if [ -f "/etc/apache2/sites-available/${DOMAIN}-le-ssl.conf" ]; then
+            info "Removing SSL configuration file..."
+            rm -f "/etc/apache2/sites-available/${DOMAIN}-le-ssl.conf"
+        fi
+    else
+        info "SSL configuration files kept (just disabled)"
+    fi
+    
+    # Ensure HTTP site is enabled
+    if [ -f "/etc/apache2/sites-available/${DOMAIN}.conf" ]; then
+        info "Ensuring HTTP site is enabled..."
+        a2ensite "${DOMAIN}.conf" 2>/dev/null || true
+    fi
+    
+    # Reload Apache
+    systemctl reload apache2 2>/dev/null
+    
+    echo ""
+    success "SSL has been disabled for $DOMAIN"
+    echo "Website is now accessible via: http://$DOMAIN"
+    echo ""
     read -p "Press Enter to continue..."
 }
 

@@ -71,7 +71,7 @@ show_menu() {
     echo -e "${CYAN}======================================================================================================="
     echo "                                     Backup & Restore Management"
     echo -e "=======================================================================================================${NC}"
-    echo "1. Backup All Websites           ./backup_restore/run.sh all           # Backup all sites (WordPress + static)"
+    echo "1. Backup All Websites            ./backup_restore/run.sh all           # Backup all sites (WordPress + static)"
     echo "2. Backup WordPress + PostgreSQL  ./backup_restore/run.sh wppg          # Combined WordPress and PostgreSQL backup"
     echo "3. Restore WordPress + PostgreSQL ./backup_restore/run.sh wppgrestore   # Combined WordPress and PostgreSQL restore"
     echo "4. Backup WordPress Sites         ./backup_restore/run.sh backup        # Create backups of WordPress sites and databases"

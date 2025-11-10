@@ -79,7 +79,7 @@ show_menu() {
     echo -e "${CYAN}============================================================================="
     echo "                         WordPress Management Tools"
     echo -e "=============================================================================${NC}"
-    echo "1. Install WordPress (CLI)           wp-install -d domain.com     # Fast CLI installation (recommended)"
+    echo "1. Install WordPress (CLI)            wp-install -d domain.com    # Fast CLI installation (recommended)"
     echo "2. Install LAMP Stack + WordPress    ./wordpress/run.sh install   # Complete LAMP installation with WordPress setup"
     echo "3. Install LAMP Stack Only           ./wordpress/run.sh lamp      # Install only LAMP stack (Apache+MySQL+PHP+Redis)"
     echo "4. Install WordPress Only            ./wordpress/run.sh wp-only   # Install WordPress on existing LAMP stack"
