@@ -58,37 +58,20 @@ else
 fi
 echo
 echo "Options:"
-echo "1) Setup daily backup (3 AM) - First site only"
-echo "2) Setup daily backup (3 AM) - All sites (WordPress + static)"
-echo "3) Setup hourly backup - Specific site"
-echo "4) View current backup cron jobs"
-echo "5) Remove all backup cron jobs"
-echo "6) Exit"
+echo "1) Setup daily backup (3 AM) - All sites (WordPress + static)"
+echo "2) View current backup cron jobs"
+echo "3) Remove all backup cron jobs"
+echo "4) Exit"
 echo
-read -p "Select option (1-6): " choice
+read -p "Select option (1-4): " choice
 
 case $choice in
     1) 
-        backup_cmd="/bin/bash $BACKUP_SCRIPT --first"
-        schedule="0 3 * * *"
-        desc="Daily at 3:00 AM - First site only"
-        ;;
-    2) 
         backup_cmd="/bin/bash $BACKUP_SCRIPT --all"
         schedule="0 3 * * *"
         desc="Daily at 3:00 AM - All sites (WordPress + static)"
         ;;
-    3)
-        read -p "Enter domain name (e.g., example.com): " domain
-        if [[ ! -d "/var/www/$domain" ]]; then
-            echo "Error: Domain $domain not found in /var/www/"
-            exit 1
-        fi
-        backup_cmd="/bin/bash $BACKUP_SCRIPT --site $domain"
-        schedule="0 * * * *"
-        desc="Hourly - $domain"
-        ;;
-    4)
+    2)
         echo
         echo "Current backup-related cron jobs:"
         echo "---------------------------------"
@@ -96,11 +79,10 @@ case $choice in
         echo
         echo "Cron schedule format: MIN HOUR DAY MONTH WEEKDAY"
         echo "  0 3 * * *    = Daily at 3:00 AM"
-        echo "  0 * * * *    = Every hour at minute 0"
         echo
         exit 0
         ;;
-    5) 
+    3) 
         echo
         echo "Current backup cron jobs:"
         crontab -l 2>/dev/null | grep -E "(backup_all_sites|backup_wordpress_postgresql|backup_wordpress|backup_postgresql|rclone.*$BACKUP_DIR)" || echo "None found"
@@ -114,7 +96,7 @@ case $choice in
         fi
         exit 0
         ;;
-    6)
+    4)
         echo "Exiting..."
         exit 0
         ;;
@@ -124,8 +106,9 @@ case $choice in
         ;;
 esac
 
-# Remove existing cron jobs for this backup command
-current_crons=$(crontab -l 2>/dev/null | grep -v "$(echo "$backup_cmd" | sed 's/[[\.*^$()+?{|]/\\&/g')" | grep -v "rclone.*$BACKUP_DIR.*$(echo "${domain:-}" | sed 's/[[\.*^$()+?{|]/\\&/g')")
+# Remove existing cron jobs for this backup command and related rclone jobs
+# For all sites backup, remove old backup_all_sites and all rclone jobs
+current_crons=$(crontab -l 2>/dev/null | grep -v "backup_all_sites" | grep -v "backup_wordpress_postgresql" | grep -v "backup_wordpress.sh" | grep -v "backup_postgresql.sh" | grep -v "rclone.*$BACKUP_DIR")
 
 # Start building new cron jobs
 new_crons="$current_crons"
@@ -143,14 +126,43 @@ new_crons="${new_crons}${schedule} $backup_cmd >> $log_file 2>&1"$'\n'
         [ $upload_hour -ge 24 ] && upload_hour=$((upload_hour - 24))
         
         if [ ${#sites[@]} -gt 0 ]; then
+            # Group sites by backup location to create one rclone job per backup path
+            declare -A backup_locations_map
             for site_info in "${sites[@]}"; do
                 website=$(echo "$site_info" | cut -d: -f1)
                 backup_path=$(echo "$site_info" | cut -d: -f2)
                 
-                # Only add rclone for the specific site if doing site-specific backup
+                # Only process if it's the specific domain requested, or all domains if none specified
                 if [[ -n "${domain:-}" && "$website" == "$domain" ]] || [[ -z "${domain:-}" ]]; then
-                    new_crons="${new_crons}0 ${upload_hour} * * * /usr/bin/rclone copy $BACKUP_DIR ${remote}:${backup_path} --include=\"*${website}*\" --log-file=$RCLONE_LOG && find $BACKUP_DIR -name \"*${website}*\" -type f -exec rm -f {} \\;"$'\n'
+                    # Check if this is a subdomain that shares backup location with parent
+                    skip_subdomain=false
+                    if [[ "$website" == *.*.* ]]; then
+                        # Extract parent domain (e.g., keralabusinesshub.in from goldrate.keralabusinesshub.in)
+                        parent_domain=$(echo "$website" | rev | cut -d'.' -f1,2 | rev)
+                        # Check if parent domain exists with same backup path
+                        for check_site in "${sites[@]}"; do
+                            check_name=$(echo "$check_site" | cut -d: -f1)
+                            check_path=$(echo "$check_site" | cut -d: -f2)
+                            if [[ "$check_name" == "$parent_domain" ]] && [[ "$check_path" == "$backup_path" ]]; then
+                                skip_subdomain=true
+                                break
+                            fi
+                        done
+                    fi
+                    
+                    # Add to map if not skipping (use parent domain pattern if subdomain shares path)
+                    if [[ "$skip_subdomain" == false ]]; then
+                        if [[ -z "${backup_locations_map[$backup_path]}" ]]; then
+                            backup_locations_map[$backup_path]="$website"
+                        fi
+                    fi
                 fi
+            done
+            
+            # Create one rclone job per unique backup location
+            for backup_path in "${!backup_locations_map[@]}"; do
+                website="${backup_locations_map[$backup_path]}"
+                new_crons="${new_crons}0 ${upload_hour} * * * /usr/bin/rclone copy $BACKUP_DIR ${remote}:${backup_path} --include=\"*${website}*\" --log-file=$RCLONE_LOG && find $BACKUP_DIR -name \"*${website}*\" -type f -exec rm -f {} \\;"$'\n'
             done
         else
             # Generic rclone upload for all backups
