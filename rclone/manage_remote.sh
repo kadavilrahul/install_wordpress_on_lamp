@@ -555,8 +555,8 @@ restore_with_browse() {
                         echo -e "  - ${CYAN}$file${NC}"
                     done
                     
-                    read -p "Proceed? (y/n) " -n 1 -r; echo
-                    if [[ $REPLY =~ ^[Yy]$ ]]; then 
+                    read -p "Proceed? [Y/n] " -n 1 -r; echo
+                    if [[ -z "$REPLY" || $REPLY =~ ^[Yy]$ ]]; then 
                         # Create backup directory if it doesn't exist
                         mkdir -p "$BACKUP_SOURCE" || error "Failed to create backup directory: $BACKUP_SOURCE"
                         
